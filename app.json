@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "Buvijon",
+    "slug": "buvijon",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "buvijon",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "uz.buvijon.app"
+    },
+    "android": {
+      "package": "uz.buvijon.app"
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": false
+    }
+  }
+}

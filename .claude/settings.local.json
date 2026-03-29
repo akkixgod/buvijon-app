@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:docs.google.com)",
+      "WebFetch(domain:doc-10-9g-docstext.googleusercontent.com)",
+      "Bash(ls \"c:/Users/Akbarali Abduvaliyeb/Desktop/BUVIJON/app/\\(tabs\\)/\")",
+      "Bash(grep -rl \"FlowerSVG\\\\|AnimatedFlower\\\\|flowerVariant\\\\|flowerColor\\\\|FlowerState\\\\|FlowerColors\" 'c:/Users/Akbarali Abduvaliyeb/Desktop/BUVIJON' --include=*.ts --include=*.tsx)",
+      "Bash(npx tsc:*)",
+      "Bash(npm install:*)"
+    ]
+  }
+}
