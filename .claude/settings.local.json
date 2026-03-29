@@ -6,7 +6,9 @@
       "Bash(ls \"c:/Users/Akbarali Abduvaliyeb/Desktop/BUVIJON/app/\\(tabs\\)/\")",
       "Bash(grep -rl \"FlowerSVG\\\\|AnimatedFlower\\\\|flowerVariant\\\\|flowerColor\\\\|FlowerState\\\\|FlowerColors\" 'c:/Users/Akbarali Abduvaliyeb/Desktop/BUVIJON' --include=*.ts --include=*.tsx)",
       "Bash(npx tsc:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "WebFetch(domain:job-logs.eascdn.net)",
+      "Bash(npx expo:*)"
     ]
   }
 }

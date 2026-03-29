@@ -14,10 +14,17 @@
       "package": "uz.buvijon.app"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": false
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "92655d23-9800-4b4f-8ee8-c406370789d6"
+      }
     }
   }
 }
