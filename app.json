@@ -6,6 +6,12 @@
     "orientation": "portrait",
     "scheme": "buvijon",
     "userInterfaceStyle": "light",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/92655d23-9800-4b4f-8ee8-c406370789d6"
+    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "uz.buvijon.app"

@@ -55,8 +55,9 @@ export default function GardenScreen() {
   const buildSteps = useCallback((): Promise<OnboardingStep[]> => {
     return new Promise(resolve => {
       const { width: SW, height: SH } = Dimensions.get('window');
-      const TAB_BAR_HEIGHT = 70;
-      const tabBarTop = SH - insets.bottom - TAB_BAR_HEIGHT;
+      const bottomPad = Math.max(insets.bottom, 8);
+      const TAB_BAR_HEIGHT = 56 + bottomPad;
+      const tabBarTop = SH - TAB_BAR_HEIGHT;
       const tabW = SW / 5;
 
       const makeSteps = (addBtnH: Highlight | null): OnboardingStep[] => [
@@ -74,7 +75,9 @@ export default function GardenScreen() {
 
       if (addBtnRef.current) {
         addBtnRef.current.measureInWindow((x, y, w, h) => {
-          resolve(makeSteps({ x, y, w, h, radius: w / 2 }));
+          // Add small padding around the button for the highlight circle
+          const pad = 6;
+          resolve(makeSteps({ x: x - pad, y: y - pad, w: w + pad * 2, h: h + pad * 2, radius: (w + pad * 2) / 2 }));
         });
       } else {
         resolve(makeSteps(null));
@@ -131,7 +134,7 @@ export default function GardenScreen() {
               style={styles.addBtn}
               onPress={() => setShowAdd(true)}
             >
-              <Ionicons name="add" size={22} color={Colors.textOnDark} />
+              <Ionicons name="add" size={20} color={Colors.textOnDark} />
             </TouchableOpacity>
           </View>
 
@@ -346,8 +349,8 @@ const styles = StyleSheet.create({
   headerTop: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.sm, paddingBottom: Spacing.sm,
-    gap: Spacing.sm,
+    paddingTop: Spacing.md, paddingBottom: Spacing.sm,
+    gap: Spacing.md,
   },
   menuBtn: {
     width: 40, height: 40, borderRadius: 12,
@@ -362,7 +365,7 @@ const styles = StyleSheet.create({
   },
   subtitle: { fontSize: FontSize.xs, color: Colors.textMuted, fontWeight: FontWeight.regular },
   addBtn: {
-    width: 40, height: 40, borderRadius: 20,
+    width: 36, height: 36, borderRadius: 18,
     backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center',
   },
   searchBar: {

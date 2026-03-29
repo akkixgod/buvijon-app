@@ -921,7 +921,7 @@ export const translations: Record<Lang, T> = {
 
 export function useTranslation(): T {
   const language = useSettingsStore(s => s.language) as Lang;
-  return translations[language] ?? translations.ru;
+  return translations[language] ?? translations['uz-latin'];
 }
 
 /** Language-aware duration formatter */

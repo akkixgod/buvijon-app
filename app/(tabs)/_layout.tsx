@@ -1,7 +1,8 @@
 import { Tabs } from 'expo-router';
 import { useRef, useEffect } from 'react';
-import { View, TouchableOpacity, StyleSheet, Animated } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Animated, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/colors';
 import { FlowerSVG } from '@/components/flower/FlowerSVG';
 import { useTranslation } from '@/i18n';
@@ -69,12 +70,14 @@ function CreateTabButton({ onPress }: { onPress?: () => void }) {
 
 export default function TabsLayout() {
   const t = useTranslation();
+  const insets = useSafeAreaInsets();
+  const bottomPadding = Math.max(insets.bottom, 8);
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarStyle: styles.tabBar,
+        tabBarStyle: [styles.tabBar, { height: 56 + bottomPadding, paddingBottom: bottomPadding }],
         tabBarShowLabel: true,
         tabBarActiveTintColor: Colors.primary,
         tabBarInactiveTintColor: Colors.textMuted,
@@ -147,8 +150,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 1,
     shadowRadius: 8,
-    height: 64,
-    paddingBottom: 8,
     paddingTop: 4,
   },
   label: {

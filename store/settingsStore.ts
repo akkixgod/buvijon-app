@@ -10,7 +10,7 @@ interface SettingsState extends AppSettings {
 const STORAGE_KEY = '@buvijon_settings';
 
 const DEFAULT_SETTINGS: AppSettings = {
-  language: 'uz-cyrillic',
+  language: 'uz-latin',
   theme: 'light',
   notificationsEnabled: true,
   soundEnabled: true,
