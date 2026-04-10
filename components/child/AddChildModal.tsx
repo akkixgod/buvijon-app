@@ -167,6 +167,7 @@ export function AddChildModal({ visible, onClose }: AddChildModalProps) {
   const [age, setAge] = useState('');
   const [selectedVariant, setSelectedVariant] = useState<FlowerVariant>('daisy');
   const [selectedColor, setSelectedColor] = useState(FLOWER_COLORS[0]);
+  const [pin, setPin] = useState('');
   const [limitMinutes, setLimitMinutes] = useState(60);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -174,6 +175,7 @@ export function AddChildModal({ visible, onClose }: AddChildModalProps) {
   const handleAdd = async () => {
     if (!name.trim()) { setError(t.addChild.errName); return; }
     if (!age.trim() || isNaN(parseInt(age))) { setError(t.addChild.errAge); return; }
+    if (pin.length !== 4 || !/^\d{4}$/.test(pin)) { setError(t.addChild.errPin); return; }
     setError('');
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setLoading(true);
@@ -181,6 +183,7 @@ export function AddChildModal({ visible, onClose }: AddChildModalProps) {
       await addChild({
         name: name.trim(),
         age: parseInt(age, 10),
+        pin,
         flowerVariant: selectedVariant,
         flowerColor: selectedColor,
         dailyLimitMinutes: limitMinutes,
@@ -197,6 +200,7 @@ export function AddChildModal({ visible, onClose }: AddChildModalProps) {
   const resetForm = () => {
     setName('');
     setAge('');
+    setPin('');
     setSelectedVariant('daisy');
     setSelectedColor(FLOWER_COLORS[0]);
     setLimitMinutes(60);
@@ -243,6 +247,19 @@ export function AddChildModal({ visible, onClose }: AddChildModalProps) {
               keyboardType="number-pad"
               maxLength={2}
             />
+
+            <Text style={styles.label}>{t.addChild.pinLabel}</Text>
+            <TextInput
+              style={[styles.input, styles.pinInput]}
+              placeholder={t.addChild.pinPlaceholder}
+              placeholderTextColor={Colors.textMuted}
+              value={pin}
+              onChangeText={v => setPin(v.replace(/[^0-9]/g, ''))}
+              keyboardType="number-pad"
+              maxLength={4}
+              secureTextEntry
+            />
+            <Text style={styles.pinHint}>{t.addChild.pinHint}</Text>
 
             <Text style={styles.label}>{t.addChild.flowerType}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scrollRow}>
@@ -317,6 +334,12 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md, padding: Spacing.md,
     fontSize: FontSize.md, color: Colors.textPrimary,
     backgroundColor: Colors.surfaceSecondary,
+  },
+  pinInput: {
+    letterSpacing: 12, textAlign: 'center', fontSize: FontSize.xl,
+  },
+  pinHint: {
+    fontSize: FontSize.xs, color: Colors.textMuted, marginTop: Spacing.xs,
   },
   scrollRow: { marginBottom: Spacing.xs },
   flowerOption: {

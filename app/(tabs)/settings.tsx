@@ -1,12 +1,12 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { Colors } from '@/constants/colors';
-import { Spacing, Radius, FontSize, FontWeight, Shadow } from '@/constants/theme';
+import { Spacing, Radius, FontSize, FontWeight } from '@/constants/theme';
 import { useTranslation, type Lang } from '@/i18n';
 
 const LANGUAGES: { value: Lang; label: string; sublabel: string }[] = [
@@ -22,14 +22,18 @@ export default function SettingsScreen() {
   const logout = useAuthStore(s => s.logout);
   const { notificationsEnabled, soundEnabled, language, updateSettings } = useSettingsStore();
 
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+
   const handleLogout = () => {
-    Alert.alert(t.settings.logoutAlertTitle, t.settings.logoutAlertMsg, [
-      { text: t.settings.logoutCancel, style: 'cancel' },
-      { text: t.settings.logoutConfirm, style: 'destructive', onPress: async () => {
-        await logout();
-        router.replace('/(auth)/login');
-      }},
-    ]);
+    setShowLogoutModal(true);
+  };
+
+  const confirmLogout = () => {
+    setShowLogoutModal(false);
+    setTimeout(() => {
+      router.replace('/(auth)/login');
+      setTimeout(() => logout(), 500);
+    }, 250);
   };
 
   return (
@@ -107,6 +111,35 @@ export default function SettingsScreen() {
           <Text style={styles.logoutText}>{t.settings.logout}</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Logout Confirmation Modal */}
+      <Modal visible={showLogoutModal} transparent animationType="fade" onRequestClose={() => setShowLogoutModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalIconWrap}>
+              <Ionicons name="log-out-outline" size={28} color={Colors.wilting} />
+            </View>
+            <Text style={styles.modalTitle}>{t.settings.logoutAlertTitle}</Text>
+            <Text style={styles.modalMessage}>{t.settings.logoutAlertMsg}</Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalBtnCancel}
+                onPress={() => setShowLogoutModal(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.modalBtnCancelText}>{t.settings.logoutCancel}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalBtnConfirm}
+                onPress={confirmLogout}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.modalBtnConfirmText}>{t.settings.logoutConfirm}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -173,7 +206,7 @@ const styles = StyleSheet.create({
     width: 36, height: 36, borderRadius: 18,
     alignItems: 'center', justifyContent: 'center',
   },
-  title: { fontSize: FontSize.xxl, fontWeight: FontWeight.medium, color: Colors.textPrimary },
+  title: { fontSize: FontSize.xxl, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   scroll: { padding: Spacing.md, gap: Spacing.xs },
 
   profileCard: {
@@ -189,7 +222,7 @@ const styles = StyleSheet.create({
   },
   avatarText: { fontSize: FontSize.xl, fontWeight: FontWeight.medium, color: Colors.primary },
   profileInfo: { flex: 1 },
-  profileName: { fontSize: FontSize.lg, fontWeight: FontWeight.medium, color: Colors.textPrimary },
+  profileName: { fontSize: FontSize.lg, fontWeight: FontWeight.semibold, color: Colors.textPrimary },
   profileEmail: { fontSize: FontSize.sm, color: Colors.textMuted },
   editBtn: {
     width: 32, height: 32, borderRadius: 16,
@@ -234,4 +267,78 @@ const styles = StyleSheet.create({
     borderWidth: 0.5, borderColor: Colors.wilting + '40',
   },
   logoutText: { fontSize: FontSize.md, fontWeight: FontWeight.medium, color: Colors.wilting },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.xl,
+  },
+  modalCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    padding: Spacing.xl,
+    width: '100%',
+    maxWidth: 320,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 10,
+  },
+  modalIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Colors.wiltingLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.md,
+  },
+  modalTitle: {
+    fontSize: FontSize.xl,
+    fontWeight: FontWeight.semibold,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.xs,
+  },
+  modalMessage: {
+    fontSize: FontSize.md,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    marginBottom: Spacing.xl,
+    lineHeight: 22,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+    width: '100%',
+  },
+  modalBtnCancel: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.surfaceSecondary,
+    alignItems: 'center',
+    borderWidth: 0.5,
+    borderColor: Colors.border,
+  },
+  modalBtnCancelText: {
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.medium,
+    color: Colors.textSecondary,
+  },
+  modalBtnConfirm: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.wilting,
+    alignItems: 'center',
+  },
+  modalBtnConfirmText: {
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.medium,
+    color: '#FFFFFF',
+  },
 });

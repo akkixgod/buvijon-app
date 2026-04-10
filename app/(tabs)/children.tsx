@@ -1,33 +1,131 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { AnimatedFlower } from '@/components/flower/AnimatedFlower';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { AddChildModal } from '@/components/child/AddChildModal';
+import { ParentPinModal } from '@/components/parent-pin/ParentPinModal';
 import { useChildrenStore } from '@/store/childrenStore';
+import { useParentPinStore } from '@/store/parentPinStore';
 import { Colors, FlowerColors } from '@/constants/colors';
-import { Spacing, Radius, FontSize, FontWeight, Shadow } from '@/constants/theme';
+import { Spacing, Radius, FontSize, FontWeight } from '@/constants/theme';
 import { getFlowerState, getUsagePercent } from '@/utils/screenTime';
 import { useTranslation, formatDurationT } from '@/i18n';
 import { Child } from '@/types';
+import { AppState } from 'react-native';
 
 export default function ChildrenScreen() {
   const router = useRouter();
   const t = useTranslation();
   const children = useChildrenStore(s => s.children);
   const [showAdd, setShowAdd] = useState(false);
+  const [showPinModal, setShowPinModal] = useState(false);
+  const { isUnlocked, lock } = useParentPinStore();
 
-  const renderChild = ({ item }: { item: Child }) => {
-    const state = getFlowerState(item.screenTimeToday, item.dailyLimitMinutes);
-    const percent = getUsagePercent(item.screenTimeToday, item.dailyLimitMinutes);
-    const stateColor = FlowerColors[state];
+  // Auto-lock after 5 minutes of inactivity
+  useEffect(() => {
+    let lockTimer: NodeJS.Timeout | null = null;
 
-    return (
+    const resetTimer = () => {
+      if (lockTimer) clearTimeout(lockTimer);
+      lockTimer = setTimeout(() => {
+        lock();
+      }, 5 * 60 * 1000); // 5 minutes
+    };
+
+    // Reset timer on user interaction
+    const handleInteraction = () => {
+      if (isUnlocked) {
+        resetTimer();
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active' && isUnlocked) {
+        resetTimer();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+      if (lockTimer) clearTimeout(lockTimer);
+    };
+  }, [isUnlocked, lock]);
+
+  const handleChildPress = (child: Child) => {
+    if (!isUnlocked) {
+      setShowPinModal(true);
+    } else {
+      router.push(`/child/${child.id}`);
+    }
+  };
+
+  const onPinSuccess = () => {
+    setShowPinModal(false);
+  };
+
+  const renderChild = ({ item, index }: { item: Child; index: number }) => (
+    <ChildRow item={item} index={index} t={t} onPress={() => handleChildPress(item)} />
+  );
+
+  return (
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <View style={styles.header}>
+        <Text style={styles.title}>{t.children.title}</Text>
+        <TouchableOpacity
+          onPress={() => isUnlocked ? setShowAdd(true) : setShowPinModal(true)}
+          style={styles.addBtn}
+        >
+          <Ionicons name="add" size={22} color={Colors.textOnDark} />
+        </TouchableOpacity>
+      </View>
+
+      <FlatList
+        data={children}
+        keyExtractor={item => item.id}
+        renderItem={renderChild}
+        contentContainerStyle={styles.list}
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
+        ListEmptyComponent={() => (
+          <View style={styles.empty}>
+            <Text style={styles.emptyText}>{t.children.empty}</Text>
+          </View>
+        )}
+      />
+
+      <AddChildModal visible={showAdd} onClose={() => setShowAdd(false)} />
+      <ParentPinModal visible={showPinModal} onClose={() => setShowPinModal(false)} onSuccess={onPinSuccess} />
+    </SafeAreaView>
+  );
+}
+
+function ChildRow({ item, index, t, onPress }: {
+  item: Child; index: number; t: ReturnType<typeof useTranslation>; onPress: () => void;
+}) {
+  const state = getFlowerState(item.screenTimeToday, item.dailyLimitMinutes);
+  const percent = getUsagePercent(item.screenTimeToday, item.dailyLimitMinutes);
+  const stateColor = FlowerColors[state];
+
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 350,
+      delay: index * 100,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
+  return (
+    <Animated.View style={{
+      opacity: fadeAnim,
+      transform: [{ translateX: fadeAnim.interpolate({ inputRange: [0, 1], outputRange: [-20, 0] }) }],
+    }}>
       <TouchableOpacity
         style={styles.childRow}
-        onPress={() => router.push(`/child/${item.id}`)}
+        onPress={onPress}
         activeOpacity={0.85}
       >
         <AnimatedFlower
@@ -56,33 +154,7 @@ export default function ChildrenScreen() {
         </View>
         <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
       </TouchableOpacity>
-    );
-  };
-
-  return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.title}>{t.children.title}</Text>
-        <TouchableOpacity onPress={() => setShowAdd(true)} style={styles.addBtn}>
-          <Ionicons name="add" size={22} color={Colors.textOnDark} />
-        </TouchableOpacity>
-      </View>
-
-      <FlatList
-        data={children}
-        keyExtractor={item => item.id}
-        renderItem={renderChild}
-        contentContainerStyle={styles.list}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
-        ListEmptyComponent={() => (
-          <View style={styles.empty}>
-            <Text style={styles.emptyText}>{t.children.empty}</Text>
-          </View>
-        )}
-      />
-
-      <AddChildModal visible={showAdd} onClose={() => setShowAdd(false)} />
-    </SafeAreaView>
+    </Animated.View>
   );
 }
 

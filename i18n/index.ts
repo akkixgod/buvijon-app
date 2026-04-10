@@ -13,9 +13,12 @@ export interface T {
     submit: string;
     noAccount: string;
     registerLink: string;
+    orDivider: string;
+    google: string;
     errEmpty: string;
     errInvalid: string;
     errSend: string;
+    errNotFound: string;
   };
 
   register: {
@@ -32,6 +35,7 @@ export interface T {
     errEmail: string;
     errInvalidEmail: string;
     errSend: string;
+    errExists: string;
   };
 
   otp: {
@@ -123,6 +127,11 @@ export interface T {
     changeLimit: string;
     blockApps: string;
     geolocation: string;
+    appsSection: string;
+    launches: string;
+    noApps: string;
+    grantPermission: string;
+    permissionHint: string;
     devAddTime: string;
     deleteTitle: (name: string) => string;
     deleteMsg: string;
@@ -140,10 +149,14 @@ export interface T {
     agePlaceholder: string;
     flowerType: string;
     flowerColor: string;
+    pinLabel: string;
+    pinPlaceholder: string;
+    pinHint: string;
     limitLabel: string;
     addBtn: string;
     errName: string;
     errAge: string;
+    errPin: string;
     errSave: string;
   };
 
@@ -167,9 +180,29 @@ export interface T {
     steps: Array<{ title: string; body: string }>;
   };
 
-  stories: {
-    uploadError: string;
-    permissionDenied: string;
+  posts: {
+    title: string;
+    empty: string;
+    like: string;
+    comment: string;
+    comments: string;
+    addComment: string;
+    commentPlaceholder: string;
+    send: string;
+    editPost: string;
+    deletePost: string;
+    archivePost: string;
+    deleteConfirm: string;
+    deleteCancel: string;
+    deleteMsg: string;
+    editTitle: string;
+    editSave: string;
+    editCancel: string;
+    you: string;
+    justNow: string;
+    firstPostCta: string;
+    firstPostBtn: string;
+    showMore: string;
   };
 
   analysis: {
@@ -223,6 +256,44 @@ export interface T {
     contentLabel: string;
     placeholder: string;
     tip: string;
+    addPhoto: string;
+    errFailed: string;
+  };
+
+  blockedApps: {
+    title: string;
+    save: string;
+    info: string;
+    searchPlaceholder: string;
+    selectedCount: (n: number) => string;
+    overlayTitle: string;
+    overlayMsg: string;
+    overlayGrant: string;
+  };
+
+  parentPin: {
+    title: string;
+    subtitle: string;
+    pinLabel: string;
+    pinPlaceholder: string;
+    biometricLabel: string;
+    biometricPrompt: string;
+    unlockBtn: string;
+    cancelBtn: string;
+    wrongPin: string;
+    settingsTitle: string;
+    biometricToggle: string;
+    biometricEnabled: string;
+    biometricDisabled: string;
+    pinRemoved: string;
+    setupTitle: string;
+    setupSubtitle: string;
+    setupPinLabel: string;
+    setupPinPlaceholder: string;
+    setupConfirmLabel: string;
+    setupBtn: string;
+    errPinMismatch: string;
+    errPinLength: string;
   };
 }
 
@@ -236,9 +307,12 @@ const ru: T = {
     submit: 'Получить код',
     noAccount: 'Нет аккаунта?',
     registerLink: 'Зарегистрироваться',
+    orDivider: 'или',
+    google: 'Войти через Google',
     errEmpty: 'Введите email адрес',
     errInvalid: 'Введите корректный email',
     errSend: 'Ошибка отправки кода',
+    errNotFound: 'Аккаунт не найден. Сначала зарегистрируйтесь',
   },
   register: {
     title: 'Создать аккаунт',
@@ -254,6 +328,7 @@ const ru: T = {
     errEmail: 'Введите email адрес',
     errInvalidEmail: 'Введите корректный email',
     errSend: 'Ошибка отправки кода',
+    errExists: 'Аккаунт с таким email уже существует. Войдите',
   },
   otp: {
     titleConfirm: 'Подтверждение email',
@@ -280,7 +355,7 @@ const ru: T = {
   },
   garden: {
     subtitle: 'Мой сад 🌿',
-    searchPlaceholder: 'Поиск ребёнка...',
+    searchPlaceholder: 'Поиск семей...',
     you: 'Вы',
     findMore: 'Найти',
     noResults: 'Ничего не найдено',
@@ -315,7 +390,7 @@ const ru: T = {
     sound: 'Звук',
     sectionLang: 'Язык приложения',
     sectionAbout: 'О приложении',
-    version: 'Buvijon v1.0.0',
+    version: 'Buvijon v1.0.1',
     privacy: 'Политика конфиденциальности',
     terms: 'Условия использования',
     logout: 'Выйти',
@@ -338,6 +413,11 @@ const ru: T = {
     changeLimit: 'Изменить лимит',
     blockApps: 'Блокировать приложения',
     geolocation: 'Геолокация',
+    appsSection: 'Приложения',
+    launches: 'запусков',
+    noApps: 'Нет данных',
+    grantPermission: 'Разрешить доступ',
+    permissionHint: 'Для отслеживания экранного времени нужно разрешить доступ к статистике использования',
     devAddTime: '[DEV] +15 мин',
     deleteTitle: (name) => `Удалить ${name}?`,
     deleteMsg: 'Все данные будут удалены. Продолжить?',
@@ -354,10 +434,14 @@ const ru: T = {
     agePlaceholder: 'Лет',
     flowerType: 'Тип цветка',
     flowerColor: 'Цвет цветка',
+    pinLabel: 'PIN-код ребёнка',
+    pinPlaceholder: '4 цифры',
+    pinHint: 'PIN нужен чтобы определить какой ребёнок пользуется телефоном',
     limitLabel: 'Дневной лимит экранного времени',
     addBtn: 'Добавить ребёнка',
     errName: 'Введите имя ребёнка',
     errAge: 'Введите возраст',
+    errPin: 'Введите 4-значный PIN-код',
     errSave: 'Ошибка сохранения',
   },
   flowerStates: {
@@ -367,9 +451,29 @@ const ru: T = {
   },
   duration: { min: 'мин', hour: 'ч' },
   dayNames: ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'],
-  stories: {
-    uploadError: 'Ошибка загрузки фото',
-    permissionDenied: 'Нет доступа к фотогалерее',
+  posts: {
+    title: 'Посты',
+    empty: 'Постов пока нет',
+    like: 'Нравится',
+    comment: 'Комментарий',
+    comments: 'Комментарии',
+    addComment: 'Добавить комментарий',
+    commentPlaceholder: 'Напишите комментарий...',
+    send: 'Отправить',
+    editPost: 'Редактировать',
+    deletePost: 'Удалить',
+    archivePost: 'Архивировать',
+    deleteConfirm: 'Удалить',
+    deleteCancel: 'Отмена',
+    deleteMsg: 'Этот пост будет удалён навсегда',
+    editTitle: 'Редактировать пост',
+    editSave: 'Сохранить',
+    editCancel: 'Отмена',
+    you: 'Вы',
+    justNow: 'Только что',
+    firstPostCta: 'Напишите первый пост о вашем малыше!',
+    firstPostBtn: 'Написать пост',
+    showMore: 'Показать ещё',
   },
   analysis: {
     title: 'Анализ',
@@ -424,7 +528,43 @@ const ru: T = {
     typeNote: 'Заметка',
     contentLabel: 'Содержание',
     placeholder: 'Поделитесь наблюдением или достижением вашего ребёнка...',
-    tip: 'Посты видят только участники вашей семейной группы в Buvijon.',
+    tip: 'Ваш пост увидят все пользователи Buvijon. Делитесь опытом и советами!',
+    addPhoto: 'Добавить фото',
+    errFailed: 'Не удалось опубликовать пост. Попробуйте снова',
+  },
+  blockedApps: {
+    title: 'Блокировка приложений',
+    save: 'Сохранить',
+    info: 'Выберите приложения, которые будут заблокированы при достижении дневного лимита экранного времени.',
+    searchPlaceholder: 'Поиск приложений...',
+    selectedCount: (n: number) => `${n} заблокировано`,
+    overlayTitle: 'Нужно разрешение',
+    overlayMsg: 'Для блокировки приложений нужно разрешение на отображение поверх других приложений.',
+    overlayGrant: 'Открыть настройки',
+  },
+  parentPin: {
+    title: 'Защита родительского доступа',
+    subtitle: 'Настройте PIN или биометрию для защиты настроек детей',
+    pinLabel: 'PIN-код',
+    pinPlaceholder: '4 цифры',
+    biometricLabel: 'Биометрия',
+    biometricPrompt: 'Подтвердите, что вы родитель',
+    unlockBtn: 'Разблокировать',
+    cancelBtn: 'Отмена',
+    wrongPin: 'Неверный PIN-код',
+    settingsTitle: 'Настройки доступа',
+    biometricToggle: 'Вход по биометрии',
+    biometricEnabled: 'Включено',
+    biometricDisabled: 'Выключено',
+    pinRemoved: 'PIN-код удалён',
+    setupTitle: 'Создать PIN-код',
+    setupSubtitle: 'Установите 4-значный PIN-код для защиты настроек',
+    setupPinLabel: 'PIN-код',
+    setupPinPlaceholder: '••••',
+    setupConfirmLabel: 'Подтвердить PIN',
+    setupBtn: 'Создать',
+    errPinMismatch: 'PIN-коды не совпадают',
+    errPinLength: 'Введите 4 цифры',
   },
   onboarding: {
     skip: 'Пропустить',
@@ -465,9 +605,12 @@ const uzCyrillic: T = {
     submit: 'Код олиш',
     noAccount: 'Аккаунт йўқми?',
     registerLink: 'Рўйхатдан ўтиш',
+    orDivider: 'ёки',
+    google: 'Google орқали кириш',
     errEmpty: 'Емаил киритинг',
     errInvalid: 'Тўғри емаил киритинг',
     errSend: 'Код юборишда хато',
+    errNotFound: 'Аккаунт топилмади. Аввал рўйхатдан ўтинг',
   },
   register: {
     title: 'Аккаунт очиш',
@@ -483,6 +626,7 @@ const uzCyrillic: T = {
     errEmail: 'Емаил киритинг',
     errInvalidEmail: 'Тўғри емаил киритинг',
     errSend: 'Код юборишда хато',
+    errExists: 'Бу емаил билан аккаунт мавжуд. Киринг',
   },
   otp: {
     titleConfirm: 'Емайлни тасдиқлаш',
@@ -509,7 +653,7 @@ const uzCyrillic: T = {
   },
   garden: {
     subtitle: 'Боғим 🌿',
-    searchPlaceholder: 'Бола излаш...',
+    searchPlaceholder: 'Oilalarni qidirish...',
     you: 'Сиз',
     findMore: 'Топиш',
     noResults: 'Натижа топилмади',
@@ -544,7 +688,7 @@ const uzCyrillic: T = {
     sound: 'Товуш',
     sectionLang: 'Тил',
     sectionAbout: 'Дастур ҳақида',
-    version: 'Buvijon v1.0.0',
+    version: 'Buvijon v1.0.1',
     privacy: 'Махфийлик сиёсати',
     terms: 'Фойдаланиш шартлари',
     logout: 'Чиқиш',
@@ -567,6 +711,11 @@ const uzCyrillic: T = {
     changeLimit: 'Лимитни ўзгартириш',
     blockApps: 'Дастурларни блоклаш',
     geolocation: 'Геолокация',
+    appsSection: 'Дастурлар',
+    launches: 'марта очилди',
+    noApps: "Маълумот йўқ",
+    grantPermission: 'Рухсат бериш',
+    permissionHint: 'Экран вақтини кузатиш учун фойдаланиш статистикасига рухсат керак',
     devAddTime: '[DEV] +15 дақиқа',
     deleteTitle: (name) => `${name}ни ўчириш`,
     deleteMsg: 'Барча маълумотлар ўчирилади. Давом этасизми?',
@@ -583,10 +732,14 @@ const uzCyrillic: T = {
     agePlaceholder: 'Ёш',
     flowerType: 'Гул тури',
     flowerColor: 'Гул ранги',
+    pinLabel: 'Бола PIN-коди',
+    pinPlaceholder: '4 рақам',
+    pinHint: 'PIN қайси бола телефон ишлатаётганини аниқлаш учун керак',
     limitLabel: 'Кунлик экран вақти лимити',
     addBtn: 'Бола қўшиш',
     errName: 'Боланинг исмини киритинг',
     errAge: 'Ёшини киритинг',
+    errPin: '4 хонали PIN-код киритинг',
     errSave: 'Сақлашда хато',
   },
   flowerStates: {
@@ -596,9 +749,29 @@ const uzCyrillic: T = {
   },
   duration: { min: 'дақ', hour: 'соат' },
   dayNames: ['Якш', 'Душ', 'Сеш', 'Чор', 'Пай', 'Жум', 'Шан'],
-  stories: {
-    uploadError: 'Расмни юклашда хато',
-    permissionDenied: 'Фотогалереяга рухсат йўқ',
+  posts: {
+    title: 'Постлар',
+    empty: 'Постлар йўқ',
+    like: 'Ёқтириш',
+    comment: 'Изоҳ',
+    comments: 'Изоҳлар',
+    addComment: 'Изоҳ қўшиш',
+    commentPlaceholder: 'Изоҳ ёзинг...',
+    send: 'Юбориш',
+    editPost: 'Таҳрирлаш',
+    deletePost: 'Ўчириш',
+    archivePost: 'Архивлаш',
+    deleteConfirm: 'Ўчириш',
+    deleteCancel: 'Бекор',
+    deleteMsg: 'Бу пост бутунлай ўчирилади',
+    editTitle: 'Постни таҳрирлаш',
+    editSave: 'Сақлаш',
+    editCancel: 'Бекор',
+    you: 'Сиз',
+    justNow: 'Ҳозиргина',
+    firstPostCta: 'Болангиз ҳақида биринчи постингизни ёзинг!',
+    firstPostBtn: 'Пост ёзиш',
+    showMore: 'Кўпроқ кўрсатиш',
   },
   analysis: {
     title: 'Таҳлил',
@@ -653,7 +826,43 @@ const uzCyrillic: T = {
     typeNote: 'Эслатма',
     contentLabel: 'Мазмун',
     placeholder: 'Фарзандингиз кузатуви ёки ютуғини бўлишинг...',
-    tip: 'Постларни фақат Buvijon оила гуруҳи аъзолари кўради.',
+    tip: 'Постингизни барча Buvijon фойдаланувчилари кўради. Тажрибангизни бўлишинг!',
+    addPhoto: 'Расм қўшиш',
+    errFailed: 'Постни чоп этиб бўлмади. Қайта уриниб кўринг',
+  },
+  blockedApps: {
+    title: 'Дастурларни блоклаш',
+    save: 'Сақлаш',
+    info: 'Кунлик экран вақти лимитига етганда блокланадиган дастурларни танланг.',
+    searchPlaceholder: 'Дастурларни қидириш...',
+    selectedCount: (n: number) => `${n} блокланган`,
+    overlayTitle: 'Рухсат керак',
+    overlayMsg: 'Дастурларни блоклаш учун бошқа дастурлар устидан кўрсатиш рухсати керак.',
+    overlayGrant: 'Созламаларни очиш',
+  },
+  parentPin: {
+    title: 'Ота-оналликниши ҳароҳати',
+    subtitle: 'ПИН ёки биометрия орқали буланингларни ҳароларини ҳимқонг',
+    pinLabel: 'ПИН-код',
+    pinPlaceholder: '4 тақам',
+    biometricLabel: 'Биометрия',
+    biometricPrompt: 'Тасдиқлашинг, сиз отанингсиқсиз',
+    unlockBtn: 'Очиш',
+    cancelBtn: 'Бекор қилиш',
+    wrongPin: 'Ноъва ПИН-код',
+    settingsTitle: 'Кириш ҳаролар',
+    biometricToggle: 'Биометрия билан кириш',
+    biometricEnabled: 'Ёқув қилинган',
+    biometricDisabled: 'Ўчириб қилинган',
+    pinRemoved: 'ПИН-код ўчирилди',
+    setupTitle: 'ПИН-код яратиш',
+    setupSubtitle: 'Буланингларни ҳароларини ҳимқонлаш учун 4-тақамли ПИН-кодни ўрнатинг',
+    setupPinLabel: 'ПИН-код',
+    setupPinPlaceholder: '••••',
+    setupConfirmLabel: 'ПИН-кодни тасдиқлаш',
+    setupBtn: 'Яратиш',
+    errPinMismatch: 'ПИН-кодлар мос келмайди',
+    errPinLength: '4 тақам киритинг',
   },
   onboarding: {
     skip: 'Ўтказиш',
@@ -694,9 +903,12 @@ const uzLatin: T = {
     submit: 'Kod olish',
     noAccount: "Akkaunt yo'qmi?",
     registerLink: "Ro'yxatdan o'tish",
+    orDivider: 'yoki',
+    google: 'Google orqali kirish',
     errEmpty: 'Email kiriting',
     errInvalid: "To'g'ri email kiriting",
     errSend: 'Kod yuborishda xato',
+    errNotFound: "Akkaunt topilmadi. Avval ro'yxatdan o'ting",
   },
   register: {
     title: 'Akkaunt ochish',
@@ -712,6 +924,7 @@ const uzLatin: T = {
     errEmail: 'Email kiriting',
     errInvalidEmail: "To'g'ri email kiriting",
     errSend: 'Kod yuborishda xato',
+    errExists: "Bu email bilan akkaunt mavjud. Kiring",
   },
   otp: {
     titleConfirm: 'Emailni tasdiqlash',
@@ -738,7 +951,7 @@ const uzLatin: T = {
   },
   garden: {
     subtitle: "Bog'im 🌿",
-    searchPlaceholder: 'Bola qidirish...',
+    searchPlaceholder: 'Oilalarni qidirish...',
     you: 'Siz',
     findMore: 'Topish',
     noResults: 'Natija topilmadi',
@@ -773,7 +986,7 @@ const uzLatin: T = {
     sound: 'Tovush',
     sectionLang: 'Til',
     sectionAbout: 'Dastur haqida',
-    version: 'Buvijon v1.0.0',
+    version: 'Buvijon v1.0.1',
     privacy: 'Maxfiylik siyosati',
     terms: 'Foydalanish shartlari',
     logout: 'Chiqish',
@@ -796,6 +1009,11 @@ const uzLatin: T = {
     changeLimit: 'Limitni o\'zgartirish',
     blockApps: 'Dasturlarni bloklash',
     geolocation: 'Geolokatsiya',
+    appsSection: 'Ilovalar',
+    launches: 'marta ochildi',
+    noApps: "Ma'lumot yo'q",
+    grantPermission: 'Ruxsat berish',
+    permissionHint: "Ekran vaqtini kuzatish uchun foydalanish statistikasiga ruxsat kerak",
     devAddTime: '[DEV] +15 daqiqa',
     deleteTitle: (name) => `${name}ni o'chirish`,
     deleteMsg: "Barcha ma'lumotlar o'chiriladi. Davom etasizmi?",
@@ -812,10 +1030,14 @@ const uzLatin: T = {
     agePlaceholder: 'Yosh',
     flowerType: 'Gul turi',
     flowerColor: 'Gul rangi',
+    pinLabel: 'Bola PIN-kodi',
+    pinPlaceholder: '4 raqam',
+    pinHint: "PIN qaysi bola telefon ishlatayotganini aniqlash uchun kerak",
     limitLabel: 'Kunlik ekran vaqti limiti',
     addBtn: "Bola qo'shish",
     errName: 'Bolaning ismini kiriting',
     errAge: 'Yoshini kiriting',
+    errPin: "4 xonali PIN-kod kiriting",
     errSave: 'Saqlashda xato',
   },
   flowerStates: {
@@ -825,9 +1047,29 @@ const uzLatin: T = {
   },
   duration: { min: 'daq', hour: 's' },
   dayNames: ['Yak', 'Du', 'Se', 'Cho', 'Pa', 'Ju', 'Sha'],
-  stories: {
-    uploadError: 'Rasmni yuklashda xato',
-    permissionDenied: 'Fotogalereyaga ruxsat yo\'q',
+  posts: {
+    title: 'Postlar',
+    empty: "Postlar yo'q",
+    like: 'Yoqtirish',
+    comment: 'Izoh',
+    comments: 'Izohlar',
+    addComment: "Izoh qo'shish",
+    commentPlaceholder: 'Izoh yozing...',
+    send: 'Yuborish',
+    editPost: 'Tahrirlash',
+    deletePost: "O'chirish",
+    archivePost: 'Arxivlash',
+    deleteConfirm: "O'chirish",
+    deleteCancel: 'Bekor',
+    deleteMsg: "Bu post butunlay o'chiriladi",
+    editTitle: 'Postni tahrirlash',
+    editSave: 'Saqlash',
+    editCancel: 'Bekor',
+    you: 'Siz',
+    justNow: 'Hozirgina',
+    firstPostCta: 'Bolangiz haqida birinchi postingizni yozing!',
+    firstPostBtn: 'Post yozish',
+    showMore: "Ko'proq ko'rsatish",
   },
   analysis: {
     title: 'Tahlil',
@@ -882,7 +1124,43 @@ const uzLatin: T = {
     typeNote: 'Eslatma',
     contentLabel: 'Mazmun',
     placeholder: 'Farzandingiz kuzatuvi yoki yutuqini bo\'lishing...',
-    tip: 'Postlarni faqat Buvijon oila guruhi a\'zolari ko\'radi.',
+    tip: 'Postingizni barcha Buvijon foydalanuvchilari ko\'radi. Tajribangizni bo\'lishing!',
+    addPhoto: 'Rasm qo\'shish',
+    errFailed: 'Postni chop etib bo\'lmadi. Qayta urinib ko\'ring',
+  },
+  blockedApps: {
+    title: 'Dasturlarni bloklash',
+    save: 'Saqlash',
+    info: 'Kunlik ekran vaqti limitiga yetganda bloklanadigan dasturlarni tanlang.',
+    searchPlaceholder: 'Dasturlarni qidirish...',
+    selectedCount: (n: number) => `${n} bloklangan`,
+    overlayTitle: 'Ruxsat kerak',
+    overlayMsg: 'Dasturlarni bloklash uchun boshqa dasturlar ustidan ko\'rsatish ruxsati kerak.',
+    overlayGrant: 'Sozlamalarni ochish',
+  },
+  parentPin: {
+    title: 'Ota-ona kirishni himoyalang',
+    subtitle: 'PIN yoki biometriya orqali bolanlarning bolalarini himoyalang',
+    pinLabel: 'PIN-kod',
+    pinPlaceholder: '4 ta raqam',
+    biometricLabel: 'Biometriya',
+    biometricPrompt: 'Tasdiqlashing, siz ota-siz ekansiz',
+    unlockBtn: 'Ochish',
+    cancelBtn: 'Bekor qilish',
+    wrongPin: 'Noto\'gri PIN-kod',
+    settingsTitle: 'Kirish sozlamalari',
+    biometricToggle: 'Biometriya bilan kirish',
+    biometricEnabled: 'Yoqilgan',
+    biometricDisabled: 'O\'chirilgan',
+    pinRemoved: 'PIN-kod o\'chirildi',
+    setupTitle: 'PIN-kod yaratish',
+    setupSubtitle: 'Bolanlarning bolalarini himoyalash uchun 4-xonali PIN-kodni o\'rnating',
+    setupPinLabel: 'PIN-kod',
+    setupPinPlaceholder: '••••',
+    setupConfirmLabel: 'PIN-kodni tasdiqlash',
+    setupBtn: 'Yaratish',
+    errPinMismatch: 'PIN-kodlar mos kelmaydi',
+    errPinLength: '4 ta raqam kiriting',
   },
   onboarding: {
     skip: "O'tkazish",

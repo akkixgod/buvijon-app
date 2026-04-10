@@ -12,13 +12,13 @@ import { Radius, FontWeight } from '@/constants/theme';
 import { SCREEN_WIDTH, ms, fs } from '@/utils/responsive';
 import { useTranslation } from '@/i18n';
 
-const OTP_LENGTH = 8;
+const OTP_LENGTH = 6;
 
 const CARD_H_PAD = ms(20) * 2;
 const OUTER_H_PAD = ms(16) * 2;
-const GAP = ms(8);
-const BOX_SIZE = Math.floor((SCREEN_WIDTH - CARD_H_PAD - OUTER_H_PAD - GAP * 3) / 4);
-const BOX_HEIGHT = Math.floor(BOX_SIZE * 1.1);
+const GAP = ms(10);
+const BOX_SIZE = Math.floor((SCREEN_WIDTH - CARD_H_PAD - OUTER_H_PAD - GAP * (OTP_LENGTH - 1)) / OTP_LENGTH);
+const BOX_HEIGHT = Math.floor(BOX_SIZE * 1.15);
 
 export default function OTPScreen() {
   const router = useRouter();
@@ -128,7 +128,7 @@ export default function OTPScreen() {
   const isFilled = digits.every(d => d !== '');
 
   return (
-    <LinearGradient colors={['#FFFFFF', '#FFF0F7', '#FFFFFF']} style={styles.container}>
+    <LinearGradient colors={['#FFFFFF', '#F5F0FF', '#FFFFFF']} style={styles.container}>
       <KeyboardAvoidingView
         style={styles.kav}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -161,31 +161,26 @@ export default function OTPScreen() {
             <Text style={styles.hint}>{t.otp.spamHint}</Text>
 
             <Animated.View style={[styles.otpWrap, { transform: [{ translateX: shakeAnim }] }]}>
-              {[0, 1].map(row => (
-                <View key={row} style={styles.otpRow}>
-                  {digits.slice(row * 4, row * 4 + 4).map((d, col) => {
-                    const i = row * 4 + col;
-                    return (
-                      <TextInput
-                        key={i}
-                        ref={ref => { inputRefs.current[i] = ref; }}
-                        style={[
-                          styles.otpBox,
-                          d !== '' && styles.otpBoxFilled,
-                          !!error && styles.otpBoxError,
-                        ]}
-                        value={d}
-                        onChangeText={v => handleDigit(i, v)}
-                        onKeyPress={({ nativeEvent }) => handleKeyPress(i, nativeEvent.key)}
-                        onFocus={handleFocus}
-                        keyboardType="number-pad"
-                        maxLength={OTP_LENGTH}
-                        selectTextOnFocus
-                      />
-                    );
-                  })}
-                </View>
-              ))}
+              <View style={styles.otpRow}>
+                {digits.map((d, i) => (
+                  <TextInput
+                    key={i}
+                    ref={ref => { inputRefs.current[i] = ref; }}
+                    style={[
+                      styles.otpBox,
+                      d !== '' && styles.otpBoxFilled,
+                      !!error && styles.otpBoxError,
+                    ]}
+                    value={d}
+                    onChangeText={v => handleDigit(i, v)}
+                    onKeyPress={({ nativeEvent }) => handleKeyPress(i, nativeEvent.key)}
+                    onFocus={handleFocus}
+                    keyboardType="number-pad"
+                    maxLength={OTP_LENGTH}
+                    selectTextOnFocus
+                  />
+                ))}
+              </View>
             </Animated.View>
 
             {error ? <Text style={styles.error}>{error}</Text> : null}

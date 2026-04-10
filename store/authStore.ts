@@ -1,6 +1,11 @@
 import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
 import { Parent } from '@/types';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
+
+GoogleSignin.configure({
+  webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+});
 
 interface AuthState {
   parent: Parent | null;
@@ -8,8 +13,9 @@ interface AuthState {
   isLoading: boolean;
 
   loadSession: () => Promise<void>;
-  sendOtp: (email: string) => Promise<{ ok: boolean; error?: string }>;
+  sendOtp: (email: string, shouldCreateUser?: boolean) => Promise<{ ok: boolean; error?: string }>;
   verifyOtp: (email: string, token: string, name?: string) => Promise<{ ok: boolean; error?: string }>;
+  signInWithGoogle: () => Promise<{ ok: boolean; error?: string }>;
   logout: () => Promise<void>;
   updateProfile: (data: Partial<Parent>) => Promise<void>;
 }
@@ -50,11 +56,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  sendOtp: async (email) => {
+  sendOtp: async (email, shouldCreateUser = true) => {
     try {
       const { error } = await supabase.auth.signInWithOtp({
         email: email.trim().toLowerCase(),
-        options: { shouldCreateUser: true },
+        options: { shouldCreateUser },
       });
       if (error) return { ok: false, error: error.message };
       return { ok: true };
@@ -112,9 +118,70 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
+  signInWithGoogle: async () => {
+    try {
+      await GoogleSignin.hasPlayServices();
+      const response = await GoogleSignin.signIn();
+
+      if (response.type === 'cancelled') {
+        return { ok: false, error: 'Вход отменён' };
+      }
+
+      const idToken = response.data?.idToken;
+      if (!idToken) {
+        return { ok: false, error: 'Не удалось получить токен Google. Проверьте Web Client ID.' };
+      }
+
+      const { data, error } = await supabase.auth.signInWithIdToken({
+        provider: 'google',
+        token: idToken,
+      });
+      if (error) return { ok: false, error: error.message };
+      if (!data.user) return { ok: false, error: 'Пользователь не найден' };
+
+      // Check/create profile
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', data.user.id)
+        .single();
+
+      if (profile) {
+        set({ parent: rowToParent(profile), isAuthenticated: true });
+      } else {
+        const name = data.user.user_metadata?.full_name ?? data.user.email?.split('@')[0] ?? '';
+        const email = data.user.email ?? '';
+        const { error: insertErr } = await supabase.from('profiles').insert({
+          id: data.user.id,
+          name,
+          email,
+          is_premium: false,
+        });
+        if (insertErr) return { ok: false, error: insertErr.message };
+        set({
+          parent: {
+            id: data.user.id,
+            name,
+            phone: '',
+            email,
+            isPremium: false,
+            createdAt: new Date().toISOString(),
+          },
+          isAuthenticated: true,
+        });
+      }
+      return { ok: true };
+    } catch (e: any) {
+      const msg = e?.code === 'SIGN_IN_CANCELLED'
+        ? 'Вход отменён'
+        : (e.message ?? 'Ошибка входа через Google');
+      return { ok: false, error: msg };
+    }
+  },
+
   logout: async () => {
-    await supabase.auth.signOut();
     set({ parent: null, isAuthenticated: false });
+    await supabase.auth.signOut().catch(() => {});
   },
 
   updateProfile: async (data) => {

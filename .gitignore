@@ -7,3 +7,17 @@ expo-env.d.ts
 node_modules
 .expo/
 dist/
+android/
+ios/
+
+# IDE
+.idea/
+
+# Signing keys (private - never commit)
+*.jks
+*.keystore
+
+# Claude / agents
+.agents/
+.claude/
+skills-lock.json

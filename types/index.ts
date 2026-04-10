@@ -12,6 +12,8 @@ export interface Child {
   dailyLimitMinutes: number;
   screenTimeToday: number;       // минут сегодня
   screenTimeWeek: number[];      // минут по дням (7 дней)
+  pin: string;                     // 4-digit PIN code for child identification
+  blockedApps: string[];          // package names to block when limit reached
   isActive: boolean;
   createdAt: string;
   lastSeen?: string;
@@ -62,15 +64,33 @@ export interface Notification {
   createdAt: string;
 }
 
-export interface Story {
+export type PostType = 'progress' | 'milestone' | 'tip' | 'note';
+
+export interface Post {
   id: string;
   authorId: string;
   authorName: string;
-  imageUrl: string;
+  authorAvatar?: string;
+  childId?: string;
+  childName?: string;
+  type: PostType;
+  content: string;
+  imageUrl?: string;
+  likesCount: number;
+  commentsCount: number;
+  isLiked?: boolean;
+  isArchived?: boolean;
   createdAt: string;
-  expiresAt: string;
-  isViewed: boolean;
-  isOwn: boolean;
+}
+
+export interface Comment {
+  id: string;
+  postId: string;
+  authorId: string;
+  authorName: string;
+  authorAvatar?: string;
+  content: string;
+  createdAt: string;
 }
 
 export interface AppSettings {

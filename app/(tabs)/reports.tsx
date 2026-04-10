@@ -11,6 +11,7 @@ import { Spacing, Radius, FontSize, FontWeight } from '@/constants/theme';
 import { getFlowerState } from '@/utils/screenTime';
 import { useTranslation, formatDurationT } from '@/i18n';
 import { Child, FlowerState } from '@/types';
+import { useScreenTime } from '@/hooks/useScreenTime';
 
 type Period = 'today' | 'week';
 
@@ -20,19 +21,19 @@ const STATE_CFG: Record<FlowerState, {
   trendColor: string; dot: string;
 }> = {
   blooming: {
-    border: '#1D9E75', avatarBg: '#EBF7F3', avatarText: '#085041',
-    badgeBg: '#EBF7F3', badgeBorder: '#A8DDD0', badgeText: '#1D9E75',
-    trendColor: '#1D9E75', dot: '#1D9E75',
+    border: Colors.blooming, avatarBg: Colors.bloomingLight, avatarText: '#065F46',
+    badgeBg: Colors.bloomingLight, badgeBorder: '#6EE7B7', badgeText: Colors.blooming,
+    trendColor: Colors.blooming, dot: Colors.blooming,
   },
   warning: {
-    border: '#BA7517', avatarBg: '#FEF5E4', avatarText: '#633806',
-    badgeBg: '#FEF5E4', badgeBorder: '#EDCA84', badgeText: '#BA7517',
-    trendColor: '#BA7517', dot: '#BA7517',
+    border: Colors.warning, avatarBg: Colors.warningLight, avatarText: '#92400E',
+    badgeBg: Colors.warningLight, badgeBorder: '#FCD34D', badgeText: Colors.warning,
+    trendColor: Colors.warning, dot: Colors.warning,
   },
   wilting: {
-    border: '#E24B4A', avatarBg: '#FDECEA', avatarText: '#A32D2D',
-    badgeBg: '#FDECEA', badgeBorder: '#F5AAAA', badgeText: '#D03030',
-    trendColor: '#E24B4A', dot: '#E24B4A',
+    border: Colors.wilting, avatarBg: Colors.wiltingLight, avatarText: '#991B1B',
+    badgeBg: Colors.wiltingLight, badgeBorder: '#FCA5A5', badgeText: Colors.wilting,
+    trendColor: Colors.wilting, dot: Colors.wilting,
   },
 };
 
@@ -55,13 +56,15 @@ export default function ReportsScreen() {
   const t = useTranslation();
   const children = useChildrenStore(s => s.children);
   const [period, setPeriod] = useState<Period>('today');
+  const screenTime = useScreenTime();
+  const realMinutes = screenTime.hasPermission ? screenTime.totalMinutes : 0;
 
   const now = new Date();
   const dateStr = `${t.analysis.fullDayNames[now.getDay()]} · ${now.getDate()} ${t.analysis.monthNames[now.getMonth()]}`;
 
   const getTime = (c: Child) =>
     period === 'today'
-      ? c.screenTimeToday
+      ? realMinutes
       : Math.round(c.screenTimeWeek.reduce((a, b) => a + b, 0) / 7);
 
   const familyAvg = children.length
@@ -114,7 +117,7 @@ export default function ReportsScreen() {
           <View style={styles.statCard}>
             <Text style={styles.statMain} numberOfLines={1}>{formatDurationT(familyAvg, t)}</Text>
             {familyDiff !== 0 && (
-              <Text style={[styles.statTrend, { color: familyDiff > 0 ? '#E24B4A' : '#1D9E75' }]} numberOfLines={1}>
+              <Text style={[styles.statTrend, { color: familyDiff > 0 ? Colors.wilting : Colors.blooming }]} numberOfLines={1}>
                 {familyDiff > 0 ? '+' : ''}{familyDiff}{t.duration.min}
               </Text>
             )}
@@ -130,7 +133,7 @@ export default function ReportsScreen() {
           <View style={styles.statCard}>
             <Text style={styles.statMain} numberOfLines={1}>{mostImprovedChild?.name ?? '—'}</Text>
             {mostImprovedChild && mostImprovedDiff > 0 && (
-              <Text style={[styles.statTrend, { color: '#1D9E75' }]} numberOfLines={1}>
+              <Text style={[styles.statTrend, { color: Colors.blooming }]} numberOfLines={1}>
                 -{mostImprovedDiff}{t.duration.min}
               </Text>
             )}
@@ -153,7 +156,7 @@ export default function ReportsScreen() {
               contentContainerStyle={styles.childScroll}
             >
               {children.map(child => (
-                <ChildCard key={child.id} child={child} t={t} getTime={getTime} />
+                <ChildCard key={child.id} child={child} t={t} getTime={getTime} realMinutes={realMinutes} />
               ))}
             </ScrollView>
 
@@ -163,18 +166,18 @@ export default function ReportsScreen() {
             <View style={styles.section}>
               <Text style={styles.sectionLabel}>{t.analysis.usageLevels}</Text>
               <LinearGradient
-                colors={['#1D9E75', '#97C459', '#FAC775', '#F09595', '#E24B4A']}
+                colors={[Colors.blooming, '#6EE7B7', '#FCD34D', '#FCA5A5', Colors.wilting]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.gradientBar}
               />
               <View style={styles.gradientLabels}>
                 {[
-                  { label: t.analysis.levelSafe, color: '#1D9E75' },
-                  { label: t.analysis.levelFair, color: '#639922' },
-                  { label: t.analysis.levelModerate, color: '#BA7517' },
-                  { label: t.analysis.levelRisky, color: '#F09595' },
-                  { label: t.analysis.levelDoctor, color: '#E24B4A' },
+                  { label: t.analysis.levelSafe, color: Colors.blooming },
+                  { label: t.analysis.levelFair, color: '#6EE7B7' },
+                  { label: t.analysis.levelModerate, color: Colors.warning },
+                  { label: t.analysis.levelRisky, color: '#FCA5A5' },
+                  { label: t.analysis.levelDoctor, color: Colors.wilting },
                 ].map(({ label, color }) => (
                   <Text key={label} style={[styles.gradientLabel, { color }]}>{label}</Text>
                 ))}
@@ -182,7 +185,7 @@ export default function ReportsScreen() {
 
               <View style={styles.chips}>
                 {children.map(child => {
-                  const state = getFlowerState(child.screenTimeToday, child.dailyLimitMinutes);
+                  const state = getFlowerState(realMinutes, child.dailyLimitMinutes);
                   const cfg = STATE_CFG[state];
                   const overDays = state === 'wilting' ? consecutiveOverDays(child) : 0;
                   const label =
@@ -227,13 +230,14 @@ export default function ReportsScreen() {
 // ─── Child card (fixed-width horizontal scroll item) ─────────────────────────
 
 function ChildCard({
-  child, t, getTime,
+  child, t, getTime, realMinutes,
 }: {
   child: Child;
   t: ReturnType<typeof useTranslation>;
   getTime: (c: Child) => number;
+  realMinutes: number;
 }) {
-  const state = getFlowerState(child.screenTimeToday, child.dailyLimitMinutes);
+  const state = getFlowerState(realMinutes, child.dailyLimitMinutes);
   const cfg = STATE_CFG[state];
   const overDays = state === 'wilting' ? consecutiveOverDays(child) : 0;
   const isDoctorMode = overDays >= 3;
@@ -320,7 +324,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight,
   },
   dateSubtitle: { fontSize: 11, color: Colors.textLabel, marginBottom: 2 },
-  title: { fontSize: 22, fontWeight: FontWeight.medium, color: Colors.textPrimary },
+  title: { fontSize: 22, fontWeight: FontWeight.bold, color: Colors.textPrimary },
 
   periodRow: { flexDirection: 'row', gap: 6 },
   periodBtn: {

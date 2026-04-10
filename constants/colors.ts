@@ -4,23 +4,28 @@
 export const Colors = {
   // Фоны
   background: '#FFFFFF',
-  backgroundDeep: '#FFF0F7',   // лёгкий розовый тинт для хедеров
+  backgroundDeep: '#F5F0FF',   // лёгкий фиолетовый тинт для хедеров
   surface: '#FFFFFF',
-  surfaceSecondary: '#F8F8F8', // subtle surface
+  surfaceSecondary: '#F8F6FF', // subtle purple surface
 
-  // Основной акцент — Blossom Pink
-  primary: '#E91E8C',
-  primaryMid: '#E91E8C',
-  primaryLight: '#F48DBD',
-  primaryPale: '#FFF0F7',
+  // Основной акцент — Light Purple
+  primary: '#7C3AED',
+  primaryMid: '#8B5CF6',
+  primaryLight: '#C4B5FD',
+  primaryPale: '#F5F0FF',
+
+  // Акцент для CTA (кнопка "+", важные действия)
+  accent: '#7C3AED',
+  accentLight: '#A78BFA',
+  accentPale: '#EDE9FE',
 
   // Состояния цветка
-  blooming: '#1D9E75',
-  bloomingLight: '#E6F5F0',
-  warning: '#BA7517',
-  warningLight: '#FDF3E3',
-  wilting: '#A32D2D',
-  wiltingLight: '#FAE8E8',
+  blooming: '#10B981',
+  bloomingLight: '#ECFDF5',
+  warning: '#F59E0B',
+  warningLight: '#FFFBEB',
+  wilting: '#EF4444',
+  wiltingLight: '#FEF2F2',
 
   // Текст
   textPrimary: '#111111',

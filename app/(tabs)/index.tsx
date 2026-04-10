@@ -1,28 +1,46 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, RefreshControl, Dimensions, Alert, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated,
+  RefreshControl, Dimensions, LayoutAnimation, Platform, UIManager, Image,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { AnimatedFlower } from '@/components/flower/AnimatedFlower';
 import { ProgressBar } from '@/components/ui/ProgressBar';
+import { BuvijonLogo } from '@/components/ui/BuvijonLogo';
 import { AddChildModal } from '@/components/child/AddChildModal';
+import { SidebarMenu } from '@/components/SidebarMenu';
+// import { CommentsModal } from '@/components/posts/CommentsModal';
+// import { PostActionMenu } from '@/components/posts/PostActionMenu';
 import { OnboardingOverlay, type OnboardingStep, type Highlight } from '@/components/onboarding/OnboardingOverlay';
-import { StoryViewModal } from '@/components/stories/StoryViewModal';
 import { useChildrenStore } from '@/store/childrenStore';
+// import { usePostsStore } from '@/store/postsStore';
 import { useAuthStore } from '@/store/authStore';
 import { useOnboardingStore } from '@/store/onboardingStore';
-import { useStoriesStore } from '@/store/storiesStore';
 import { Colors, FlowerColors } from '@/constants/colors';
-import { Spacing, Radius, FontSize, FontWeight, Shadow } from '@/constants/theme';
+import { Spacing, Radius, FontSize, FontWeight } from '@/constants/theme';
 import { getFlowerState, getUsagePercent } from '@/utils/screenTime';
 import { useTranslation, formatDurationT } from '@/i18n';
-import { Child, Story } from '@/types';
+import { Child } from '@/types';
+// import { Post } from '@/types';
+import { useScreenTime } from '@/hooks/useScreenTime';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+const { width: SW, height: SH } = Dimensions.get('window');
+const CHILD_CARD_W = 130;
+// const INITIAL_POSTS_COUNT = 3;
+
+// const POST_TYPE_CFG: Record<string, { icon: string; color: string; bg: string }> = {
+//   progress:  { icon: 'trending-up',   color: Colors.blooming, bg: Colors.bloomingLight },
+//   milestone: { icon: 'star',          color: '#F59E0B',       bg: '#FFFBEB' },
+//   tip:       { icon: 'bulb',          color: Colors.primary,  bg: Colors.primaryPale },
+//   note:      { icon: 'document-text', color: Colors.textSecondary, bg: Colors.surfaceSecondary },
+// };
 
 export default function GardenScreen() {
   const router = useRouter();
@@ -31,32 +49,44 @@ export default function GardenScreen() {
   const parent = useAuthStore(s => s.parent);
   const children = useChildrenStore(s => s.children);
   const loadChildren = useChildrenStore(s => s.loadChildren);
+  // const posts = usePostsStore(s => s.posts);
+  // const loadPosts = usePostsStore(s => s.loadPosts);
+  // const toggleLike = usePostsStore(s => s.toggleLike);
+  // const deletePost = usePostsStore(s => s.deletePost);
+  // const editPost = usePostsStore(s => s.editPost);
+  // const archivePost = usePostsStore(s => s.archivePost);
   const { hasSeenOnboarding, loaded: onboardingLoaded, complete: completeOnboarding } = useOnboardingStore();
-  const { stories, isUploading, fetchStories, pickAndUpload, markViewed } = useStoriesStore();
+
+  const screenTime = useScreenTime();
+  const realMinutes = screenTime.hasPermission ? screenTime.totalMinutes : 0;
+
   const [showAdd, setShowAdd] = useState(false);
-  const [searchText, setSearchText] = useState('');
+  const [showSidebar, setShowSidebar] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [viewingStory, setViewingStory] = useState<Story | null>(null);
+  // const [showAllPosts, setShowAllPosts] = useState(false);
+  // const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
+  // const [menuPost, setMenuPost] = useState<Post | null>(null);
 
-  useEffect(() => { fetchStories(); }, []);
+  // useEffect(() => { loadPosts(); }, []);
 
-  // Group stories: own first, then others (unseen first)
-  const ownStory = stories.find(s => s.isOwn) ?? null;
-  const othersMap = new Map<string, Story>();
-  for (const s of stories) {
-    if (!s.isOwn && !othersMap.has(s.authorId)) othersMap.set(s.authorId, s);
-  }
-  const otherStories = [...othersMap.values()].sort((a, b) => (a.isViewed ? 1 : 0) - (b.isViewed ? 1 : 0));
+  const smoothLayout = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.create(
+      400,
+      LayoutAnimation.Types.easeInEaseOut,
+      LayoutAnimation.Properties.opacity,
+    ));
+  };
 
-  // Ref to measure the + button position
+
+  // ─── Onboarding ─────────────────────────────────────────────────────
   const addBtnRef = useRef<View>(null);
+  const [onboardingSteps, setOnboardingSteps] = useState<OnboardingStep[]>([]);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
-  // Build onboarding steps — async because measureInWindow is async
   const buildSteps = useCallback((): Promise<OnboardingStep[]> => {
     return new Promise(resolve => {
-      const { width: SW, height: SH } = Dimensions.get('window');
       const bottomPad = Math.max(insets.bottom, 8);
-      const TAB_BAR_HEIGHT = 56 + bottomPad;
+      const TAB_BAR_HEIGHT = 60 + bottomPad;
       const tabBarTop = SH - TAB_BAR_HEIGHT;
       const tabW = SW / 5;
 
@@ -75,7 +105,6 @@ export default function GardenScreen() {
 
       if (addBtnRef.current) {
         addBtnRef.current.measureInWindow((x, y, w, h) => {
-          // Add small padding around the button for the highlight circle
           const pad = 6;
           resolve(makeSteps({ x: x - pad, y: y - pad, w: w + pad * 2, h: h + pad * 2, radius: (w + pad * 2) / 2 }));
         });
@@ -85,10 +114,6 @@ export default function GardenScreen() {
     });
   }, [t, insets]);
 
-  const [onboardingSteps, setOnboardingSteps] = useState<OnboardingStep[]>([]);
-  const [showOnboarding, setShowOnboarding] = useState(false);
-
-  // Trigger onboarding once layout is ready
   const onHeaderLayout = useCallback(() => {
     if (onboardingLoaded && !hasSeenOnboarding && !showOnboarding) {
       setTimeout(async () => {
@@ -101,255 +126,378 @@ export default function GardenScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadChildren();
+    await Promise.all([loadChildren()/* , loadPosts() */]);
     setRefreshing(false);
   };
 
-  const filteredChildren = children.filter(c =>
-    c.name.toLowerCase().includes(searchText.toLowerCase())
-  );
+  // ─── Format time ────────────────────────────────────────────────────
+  const formatTime = (dateStr: string) => {
+    const d = new Date(dateStr);
+    const now = new Date();
+    const hours = d.getHours().toString().padStart(2, '0');
+    const mins = d.getMinutes().toString().padStart(2, '0');
+    const time = `${hours}:${mins}`;
+
+    const isToday = d.toDateString() === now.toDateString();
+    if (isToday) return time;
+
+    const day = d.getDate();
+    const month = d.toLocaleDateString('ru', { month: 'short' }).replace('.', '');
+    return `${day} ${month}, ${time}`;
+  };
+
+  // const visiblePosts = showAllPosts ? posts : posts.slice(0, INITIAL_POSTS_COUNT);
+  // const hasMorePosts = !showAllPosts && posts.length > INITIAL_POSTS_COUNT;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      {/* Header */}
+      <View style={styles.header} onLayout={onHeaderLayout}>
+        <TouchableOpacity style={styles.menuBtn} onPress={() => setShowSidebar(true)}>
+          <Ionicons name="menu" size={24} color={Colors.textPrimary} />
+        </TouchableOpacity>
+
+        <View style={styles.titleBlock}>
+          <View style={styles.titleRow}>
+            <BuvijonLogo size={30} />
+            <Text style={styles.appName}>Buvijon</Text>
+          </View>
+          <Text style={styles.subtitle}>{t.garden.subtitle}</Text>
+        </View>
+
+        <TouchableOpacity ref={addBtnRef} style={styles.addBtn} onPress={() => setShowAdd(true)}>
+          <Ionicons name="person-add" size={18} color={Colors.textOnDark} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Content */}
       <ScrollView
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
       >
-        {/* Шапка */}
-        <View style={styles.header} onLayout={onHeaderLayout}>
-          <View style={styles.headerTop}>
-            <TouchableOpacity style={styles.menuBtn} onPress={() => router.push('/(tabs)/settings')}>
-              <Ionicons name="menu" size={24} color={Colors.textPrimary} />
-            </TouchableOpacity>
-
-            <View style={styles.titleBlock}>
-              <Text style={styles.appName}>Buvijon</Text>
-              <Text style={styles.subtitle}>{t.garden.subtitle}</Text>
-            </View>
-
-            <TouchableOpacity
-              ref={addBtnRef}
-              style={styles.addBtn}
-              onPress={() => setShowAdd(true)}
-            >
-              <Ionicons name="add" size={20} color={Colors.textOnDark} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Поиск */}
-          <View style={styles.searchBar}>
-            <Ionicons name="search" size={18} color={Colors.textMuted} style={styles.searchIcon} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder={t.garden.searchPlaceholder}
-              placeholderTextColor={Colors.textMuted}
-              value={searchText}
-              onChangeText={setSearchText}
-            />
-            {searchText.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchText('')}>
-                <Ionicons name="close-circle" size={18} color={Colors.textMuted} />
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {/* Сторис */}
+        {/* Kids Section */}
+        <View style={styles.kidsSection}>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            style={styles.storiesRow}
-            contentContainerStyle={styles.storiesContent}
+            contentContainerStyle={styles.kidsScroll}
           >
-            {/* Own story / add button */}
-            <TouchableOpacity
-              style={styles.storyItem}
-              onPress={async () => {
-                if (ownStory) {
-                  setViewingStory(ownStory);
-                } else {
-                  const result = await pickAndUpload();
-                  if (result.error === 'permission') {
-                    Alert.alert('', t.stories.permissionDenied);
-                  } else if (result.error) {
-                    Alert.alert('', t.stories.uploadError);
-                  }
-                }
-              }}
-              disabled={isUploading}
-            >
-              {isUploading ? (
-                <View style={[styles.storyRing, styles.storyRingOwn, { alignItems: 'center', justifyContent: 'center' }]}>
-                  <ActivityIndicator color={Colors.primary} size="small" />
-                </View>
-              ) : (
-                <View style={[styles.storyRing, ownStory ? styles.storyRingOwn : styles.storyRingAdd]}>
-                  <View style={[styles.storyAvatar, !ownStory && styles.storyAvatarAdd]}>
-                    {ownStory ? (
-                      <Text style={styles.storyInitials}>
-                        {parent?.name?.[0]?.toUpperCase() || '?'}
-                      </Text>
-                    ) : (
-                      <Ionicons name="add" size={20} color={Colors.primary} />
-                    )}
-                  </View>
-                </View>
-              )}
-              <Text style={styles.storyName}>{t.garden.you}</Text>
-            </TouchableOpacity>
-
-            {/* Other users' stories */}
-            {otherStories.map(story => (
-              <TouchableOpacity
-                key={story.id}
-                style={styles.storyItem}
-                onPress={() => {
-                  setViewingStory(story);
-                  if (!story.isViewed) markViewed(story.id);
-                }}
-              >
-                <View style={[styles.storyRing, story.isViewed ? styles.storyRingSeen : styles.storyRingUnseen]}>
-                  <View style={styles.storyAvatar}>
-                    <Text style={styles.storyInitials}>
-                      {story.authorName.slice(0, 2).toUpperCase()}
-                    </Text>
-                  </View>
-                </View>
-                <Text style={styles.storyName} numberOfLines={1}>{story.authorName}</Text>
+            {children.length === 0 ? (
+              <TouchableOpacity style={styles.kidCardEmpty} onPress={() => setShowAdd(true)}>
+                <Ionicons name="add-circle-outline" size={28} color={Colors.primary} />
+                <Text style={styles.kidCardEmptyText}>{t.garden.addBtn}</Text>
               </TouchableOpacity>
-            ))}
+            ) : (
+              children.map((child, i) => (
+                <KidCard key={child.id} child={child} t={t} realMinutes={realMinutes} index={i} />
+              ))
+            )}
           </ScrollView>
         </View>
 
-        {/* Цветки */}
-        <View style={styles.gardenSection}>
-          {filteredChildren.length === 0 && !searchText ? (
-            <EmptyGarden onAdd={() => setShowAdd(true)} t={t} />
-          ) : filteredChildren.length === 0 ? (
-            <View style={styles.noResults}>
-              <Text style={styles.noResultsText}>{t.garden.noResults}</Text>
+        {/* Posts section - temporarily hidden */}
+        {/* <View style={styles.postsSection}>
+          <View style={styles.postsHeader}>
+            <Text style={styles.postsLabel}>{t.posts.title}</Text>
+          </View>
+
+          {posts.length === 0 ? (
+            <View style={styles.emptyPosts}>
+              <PulseIcon>
+                <View style={styles.emptyPostsIcon}>
+                  <Ionicons name="create-outline" size={32} color={Colors.primary} />
+                </View>
+              </PulseIcon>
+              <Text style={styles.emptyPostsTitle}>{t.posts.firstPostCta}</Text>
+              <Text style={styles.emptyPostsText}>{t.create.tip}</Text>
+              <TouchableOpacity
+                style={styles.emptyPostsBtn}
+                onPress={() => router.push('/(tabs)/create')}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="add" size={18} color="#fff" />
+                <Text style={styles.emptyPostsBtnText}>{t.posts.firstPostBtn}</Text>
+              </TouchableOpacity>
             </View>
           ) : (
-            filteredChildren.map(child => (
-              <FlowerRow key={child.id} child={child} t={t} />
-            ))
+            <>
+              {visiblePosts.map((post, idx) => (
+                <PostCard
+                  key={post.id}
+                  post={post}
+                  t={t}
+                  index={idx}
+                  formatTime={formatTime}
+                  isOwn={post.authorId === parent?.id}
+                  isLast={idx === visiblePosts.length - 1}
+                  onLike={() => toggleLike(post.id)}
+                  onComment={() => setCommentsPostId(post.id)}
+                  onMenu={() => setMenuPost(post)}
+                />
+              ))}
+              {hasMorePosts && (
+                <TouchableOpacity
+                  style={styles.showMoreBtn}
+                  onPress={() => { smoothLayout(); setShowAllPosts(true); }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.showMoreText}>{t.posts.showMore}</Text>
+                  <Ionicons name="chevron-down" size={16} color={Colors.primary} />
+                </TouchableOpacity>
+              )}
+            </>
           )}
-        </View>
+        </View> */}
 
-        <View style={{ height: 24 }} />
+        <View style={{ height: 32 }} />
       </ScrollView>
 
+      {/* Modals */}
       <AddChildModal visible={showAdd} onClose={() => setShowAdd(false)} />
-
-      {viewingStory && (
-        <StoryViewModal
-          story={viewingStory}
-          onClose={() => setViewingStory(null)}
-        />
-      )}
-
+      <SidebarMenu visible={showSidebar} onClose={() => setShowSidebar(false)} />
+      {/* <CommentsModal
+        visible={commentsPostId !== null}
+        postId={commentsPostId || ''}
+        onClose={() => setCommentsPostId(null)}
+      />
+      <PostActionMenu
+        visible={menuPost !== null}
+        post={menuPost}
+        onClose={() => setMenuPost(null)}
+        onEdit={(id, content) => editPost(id, content)}
+        onDelete={(id) => deletePost(id)}
+        onArchive={(id) => archivePost(id)}
+      /> */}
       <OnboardingOverlay
         steps={onboardingSteps}
         visible={showOnboarding}
-        onComplete={() => {
-          setShowOnboarding(false);
-          completeOnboarding();
-        }}
+        onComplete={() => { setShowOnboarding(false); completeOnboarding(); }}
       />
     </SafeAreaView>
   );
 }
 
-function FlowerRow({ child, t }: { child: Child; t: ReturnType<typeof useTranslation> }) {
+// ─── Kid Card ──────────────────────────────────────────────────────────────
+function KidCard({ child, t, realMinutes, index }: { child: Child; t: ReturnType<typeof useTranslation>; realMinutes: number; index: number }) {
   const router = useRouter();
-  const state = getFlowerState(child.screenTimeToday, child.dailyLimitMinutes);
-  const percent = getUsagePercent(child.screenTimeToday, child.dailyLimitMinutes);
+  const state = getFlowerState(realMinutes, child.dailyLimitMinutes);
+  const percent = getUsagePercent(realMinutes, child.dailyLimitMinutes);
   const stateColor = FlowerColors[state];
 
+  const enterAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.spring(enterAnim, {
+      toValue: 1,
+      delay: index * 100,
+      tension: 60,
+      friction: 8,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
   return (
-    <TouchableOpacity
-      style={styles.flowerRow}
-      onPress={() => router.push(`/child/${child.id}`)}
-      activeOpacity={0.92}
-    >
-      <LinearGradient
-        colors={[stateColor.light, Colors.surface]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={styles.flowerRowGradient}
+    <Animated.View style={{
+      opacity: enterAnim,
+      transform: [{ scale: enterAnim.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) }],
+    }}>
+      <TouchableOpacity
+        style={styles.kidCard}
+        onPress={() => router.push(`/child/${child.id}`)}
+        activeOpacity={0.9}
       >
-        <View style={styles.flowerLeft}>
+        <View style={styles.kidCardFlower}>
           <AnimatedFlower
             variant={child.flowerVariant}
             color={child.flowerColor}
-            usedMinutes={child.screenTimeToday}
+            usedMinutes={realMinutes}
             limitMinutes={child.dailyLimitMinutes}
-            size={90}
+            size={52}
           />
         </View>
-
-        <View style={styles.flowerInfo}>
-          <View style={styles.flowerNameRow}>
-            <Text style={styles.flowerName}>{child.name}</Text>
-            <View style={[styles.stateBadge, { backgroundColor: stateColor.light }]}>
-              <View style={[styles.stateDot, { backgroundColor: stateColor.primary }]} />
-              <Text style={[styles.stateBadgeText, { color: stateColor.primary }]}>
-                {t.flowerStates[state]}
-              </Text>
-            </View>
-          </View>
-
-          <Text style={styles.flowerAge}>{t.garden.ageLabel(child.age)}</Text>
-
-          <View style={styles.timeRow}>
-            <Ionicons name="time-outline" size={13} color={Colors.textMuted} />
-            <Text style={styles.timeText}>
-              {formatDurationT(child.screenTimeToday, t)}
-              <Text style={styles.timeSeparator}> / </Text>
-              {formatDurationT(child.dailyLimitMinutes, t)}
-            </Text>
-          </View>
-
-          <View style={styles.progressWrap}>
-            <ProgressBar progress={percent} state={state} height={7} />
-            <Text style={[styles.percentText, { color: stateColor.primary }]}>{percent}%</Text>
-          </View>
+        <Text style={styles.kidCardName} numberOfLines={1}>{child.name}</Text>
+        <View style={styles.kidCardProgress}>
+          <ProgressBar progress={percent} state={state} height={4} />
         </View>
-
-        <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} style={styles.chevron} />
-      </LinearGradient>
-    </TouchableOpacity>
-  );
-}
-
-function EmptyGarden({ onAdd, t }: { onAdd: () => void; t: ReturnType<typeof useTranslation> }) {
-  return (
-    <View style={styles.emptyContainer}>
-      <Text style={styles.emptyEmoji}>🌱</Text>
-      <Text style={styles.emptyTitle}>{t.garden.emptyTitle}</Text>
-      <Text style={styles.emptyText}>{t.garden.emptyBody}</Text>
-      <TouchableOpacity onPress={onAdd} style={styles.emptyBtn}>
-        <Ionicons name="add-circle-outline" size={18} color={Colors.textOnDark} />
-        <Text style={styles.emptyBtnText}>{t.garden.addBtn}</Text>
+        <Text style={[styles.kidCardTime, { color: stateColor.primary }]}>
+          {formatDurationT(realMinutes, t)}
+        </Text>
       </TouchableOpacity>
-    </View>
+    </Animated.View>
   );
 }
 
+// ─── Fade-in wrapper for staggered entrance ──────────────────────────────────
+function FadeSlideIn({ index, children: content }: { index: number; children: React.ReactNode }) {
+  const anim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(anim, {
+      toValue: 1,
+      duration: 350,
+      delay: index * 80,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+  return (
+    <Animated.View style={{
+      opacity: anim,
+      transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }],
+    }}>
+      {content}
+    </Animated.View>
+  );
+}
+
+// // ─── Animated like button ─────────────────────────────────────────────────────
+// function AnimatedLikeButton({ isLiked, count, onPress }: {
+//   isLiked: boolean; count: number; onPress: () => void;
+// }) {
+//   const scale = useRef(new Animated.Value(1)).current;
+//   const prevLiked = useRef(isLiked);
+
+//   useEffect(() => {
+//     if (isLiked !== prevLiked.current) {
+//       prevLiked.current = isLiked;
+//       if (isLiked) {
+//         Animated.sequence([
+//           Animated.spring(scale, { toValue: 1.35, useNativeDriver: true, tension: 200, friction: 5 }),
+//           Animated.spring(scale, { toValue: 1, useNativeDriver: true, tension: 120, friction: 6 }),
+//         ]).start();
+//       }
+//     }
+//   }, [isLiked]);
+
+//   return (
+//     <TouchableOpacity
+//       style={styles.threadActionBtn}
+//       onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); }}
+//       activeOpacity={0.6}
+//     >
+//       <Animated.View style={{ transform: [{ scale }] }}>
+//         <Ionicons
+//           name={isLiked ? 'heart' : 'heart-outline'}
+//           size={18}
+//           color={isLiked ? Colors.wilting : Colors.textMuted}
+//         />
+//       </Animated.View>
+//       {count > 0 && (
+//         <Text style={[styles.threadActionCount, isLiked && { color: Colors.wilting }]}>
+//           {count}
+//         </Text>
+//       )}
+//     </TouchableOpacity>
+//   );
+// }
+
+// // ─── Pulse animation for empty state icon ─────────────────────────────────────
+// function PulseIcon({ children: content }: { children: React.ReactNode }) {
+//   const pulse = useRef(new Animated.Value(1)).current;
+//   useEffect(() => {
+//     Animated.loop(
+//       Animated.sequence([
+//         Animated.timing(pulse, { toValue: 1.08, duration: 1200, useNativeDriver: true }),
+//         Animated.timing(pulse, { toValue: 1, duration: 1200, useNativeDriver: true }),
+//       ])
+//     ).start();
+//   }, []);
+//   return <Animated.View style={{ transform: [{ scale: pulse }] }}>{content}</Animated.View>;
+// }
+
+// // ─── Post Card (Threads-style) ─────────────────────────────────────────────
+// function PostCard({ post, t, index, formatTime, isOwn, isLast, onLike, onComment, onMenu }: {
+//   post: Post; t: ReturnType<typeof useTranslation>;
+//   index: number;
+//   formatTime: (d: string) => string;
+//   isOwn: boolean;
+//   isLast: boolean;
+//   onLike: () => void;
+//   onComment: () => void;
+//   onMenu: () => void;
+// }) {
+//   const cfg = POST_TYPE_CFG[post.type] || POST_TYPE_CFG.note;
+//   const initial = (isOwn ? t.posts.you : post.authorName).charAt(0).toUpperCase();
+
+//   return (
+//     <FadeSlideIn index={index}>
+//       <View style={styles.threadPost}>
+//         {/* Left column: avatar + thread line */}
+//         <View style={styles.threadLeft}>
+//           <View style={styles.threadAvatar}>
+//             <Text style={styles.threadAvatarText}>{initial}</Text>
+//           </View>
+//           {!isLast && <View style={styles.threadLine} />}
+//         </View>
+
+//         {/* Right column: content */}
+//         <View style={styles.threadRight}>
+//           {/* Header row */}
+//           <View style={styles.threadHeader}>
+//             <View style={styles.threadAuthorRow}>
+//               <Text style={styles.threadAuthorName}>
+//                 {isOwn ? t.posts.you : post.authorName}
+//               </Text>
+//               <View style={[styles.threadTypeBadge, { backgroundColor: cfg.bg }]}>
+//                 <Ionicons name={cfg.icon as any} size={10} color={cfg.color} />
+//               </View>
+//             </View>
+//             <View style={styles.threadHeaderRight}>
+//               <Text style={styles.threadTime}>{formatTime(post.createdAt)}</Text>
+//               {isOwn && (
+//                 <TouchableOpacity
+//                   onPress={onMenu}
+//                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+//                   style={styles.threadMenuBtn}
+//                 >
+//                   <Ionicons name="ellipsis-horizontal" size={16} color={Colors.textMuted} />
+//                 </TouchableOpacity>
+//               )}
+//             </View>
+//           </View>
+
+//           {/* Child tag */}
+//           {post.childName && (
+//             <View style={styles.threadChildTag}>
+//               <Ionicons name="leaf-outline" size={11} color={Colors.blooming} />
+//               <Text style={styles.threadChildName}>{post.childName}</Text>
+//             </View>
+//           )}
+
+//           {/* Content */}
+//           <Text style={styles.threadContent}>
+//             {post.content}
+//           </Text>
+
+//           {/* Image */}
+//           {post.imageUrl && (
+//             <Image source={{ uri: post.imageUrl }} style={styles.threadImage} resizeMode="cover" />
+//           )}
+
+//           {/* Engagement */}
+//           <View style={styles.threadActions}>
+//             <AnimatedLikeButton isLiked={!!post.isLiked} count={post.likesCount} onPress={onLike} />
+
+//             <TouchableOpacity style={styles.threadActionBtn} onPress={onComment} activeOpacity={0.6}>
+//               <Ionicons name="chatbubble-outline" size={16} color={Colors.textMuted} />
+//               {post.commentsCount > 0 && (
+//                 <Text style={styles.threadActionCount}>{post.commentsCount}</Text>
+//               )}
+//             </TouchableOpacity>
+//           </View>
+//         </View>
+//       </View>
+//     </FadeSlideIn>
+//   );
+// }
+
+// ─── Styles ────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
+
+  // Header
   header: {
-    backgroundColor: Colors.backgroundDeep,
-    paddingBottom: Spacing.md,
-    borderBottomWidth: 0.5,
-    borderBottomColor: Colors.borderLight,
-    marginBottom: Spacing.lg,
-  },
-  headerTop: {
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md, paddingBottom: Spacing.sm,
+    paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm,
+    backgroundColor: Colors.backgroundDeep,
+    borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight,
     gap: Spacing.md,
   },
   menuBtn: {
@@ -359,82 +507,181 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   titleBlock: { flex: 1 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   appName: {
-    fontSize: FontSize.xxl, fontWeight: FontWeight.medium,
-    color: Colors.primary, letterSpacing: -0.3, lineHeight: 26,
+    fontSize: FontSize.xxl, fontWeight: FontWeight.bold,
+    color: Colors.primary, letterSpacing: -0.3,
   },
-  subtitle: { fontSize: FontSize.xs, color: Colors.textMuted, fontWeight: FontWeight.regular },
+  subtitle: { fontSize: FontSize.xs, color: Colors.textMuted },
   addBtn: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: Colors.accent,
+    alignItems: 'center', justifyContent: 'center',
   },
-  searchBar: {
-    flexDirection: 'row', alignItems: 'center',
-    marginHorizontal: Spacing.lg, backgroundColor: Colors.surface,
-    borderRadius: Radius.full, paddingHorizontal: Spacing.md,
-    height: 42, borderWidth: 0.5, borderColor: Colors.border,
-    gap: Spacing.xs, marginBottom: Spacing.md,
-  },
-  searchIcon: { marginRight: 2 },
-  searchInput: { flex: 1, fontSize: FontSize.md, color: Colors.textPrimary },
-  storiesRow: { marginLeft: Spacing.lg },
-  storiesContent: { paddingRight: Spacing.lg, gap: Spacing.md },
-  storyItem: { alignItems: 'center', width: 62 },
-  storyRing: {
-    width: 58, height: 58, borderRadius: 29,
-    padding: 2.5, alignItems: 'center', justifyContent: 'center',
-  },
-  storyRingOwn: { borderWidth: 2, borderColor: Colors.primary },
-  storyRingUnseen: { borderWidth: 2, borderColor: Colors.primary },
-  storyRingSeen: { borderWidth: 1.5, borderColor: Colors.border },
-  storyRingAdd: { borderWidth: 1, borderColor: Colors.border, borderStyle: 'dashed' },
-  storyAvatar: {
-    width: 48, height: 48, borderRadius: 24,
-    backgroundColor: Colors.primaryPale, alignItems: 'center', justifyContent: 'center',
-  },
-  storyAvatarAdd: { backgroundColor: Colors.surfaceSecondary },
-  storyInitials: { fontSize: FontSize.xs, fontWeight: FontWeight.medium, color: Colors.primary },
-  storyName: {
-    fontSize: 10, color: Colors.textMuted,
-    marginTop: 4, textAlign: 'center', width: 60,
-  },
-  gardenSection: { paddingHorizontal: Spacing.md, gap: Spacing.sm },
-  flowerRow: {
-    borderRadius: Radius.lg, overflow: 'hidden',
+  // Kids section
+  kidsSection: {
+    marginHorizontal: Spacing.md, marginTop: Spacing.md,
+    backgroundColor: Colors.surfaceSecondary,
+    borderRadius: Radius.xl,
     borderWidth: 0.5, borderColor: Colors.border,
+    paddingVertical: Spacing.sm,
+  },
+  kidsScroll: {
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, gap: 12,
+  },
+  kidCard: {
+    width: CHILD_CARD_W,
     backgroundColor: Colors.surface,
+    borderRadius: Radius.lg, padding: Spacing.md,
+    alignItems: 'center',
+    borderWidth: 0.5, borderColor: Colors.border,
+    gap: 6,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04, shadowRadius: 3, elevation: 1,
   },
-  flowerRowGradient: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingVertical: Spacing.sm, paddingLeft: Spacing.sm, paddingRight: Spacing.md,
+  kidCardFlower: { marginBottom: 4 },
+  kidCardName: {
+    fontSize: FontSize.sm, fontWeight: FontWeight.medium,
+    color: Colors.textPrimary, textAlign: 'center',
   },
-  flowerLeft: { width: 100, alignItems: 'center' },
-  flowerInfo: { flex: 1, paddingLeft: Spacing.sm, gap: 5 },
-  flowerNameRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flexWrap: 'wrap' },
-  flowerName: { fontSize: FontSize.lg, fontWeight: FontWeight.medium, color: Colors.textPrimary },
-  stateBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 3,
-    borderRadius: Radius.full, paddingHorizontal: 8, paddingVertical: 2,
+  kidCardProgress: { width: '100%' },
+  kidCardTime: { fontSize: FontSize.xs, fontWeight: FontWeight.medium },
+  kidCardEmpty: {
+    width: CHILD_CARD_W, height: 130,
+    backgroundColor: Colors.surface, borderRadius: Radius.lg,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: Colors.primaryLight, borderStyle: 'dashed',
+    gap: Spacing.sm,
   },
-  stateDot: { width: 5, height: 5, borderRadius: 3 },
-  stateBadgeText: { fontSize: 10, fontWeight: FontWeight.medium },
-  flowerAge: { fontSize: FontSize.xs, color: Colors.textMuted },
-  timeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  timeText: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.regular },
-  timeSeparator: { color: Colors.textMuted },
-  progressWrap: { gap: 3 },
-  percentText: { fontSize: 10, fontWeight: FontWeight.medium, textAlign: 'right' },
-  chevron: { marginLeft: Spacing.xs },
-  emptyContainer: { alignItems: 'center', paddingVertical: Spacing.xxl, paddingHorizontal: Spacing.xl },
-  emptyEmoji: { fontSize: 64, marginBottom: Spacing.md },
-  emptyTitle: { fontSize: FontSize.xxl, fontWeight: FontWeight.medium, color: Colors.textPrimary, marginBottom: Spacing.sm },
-  emptyText: { fontSize: FontSize.md, color: Colors.textMuted, textAlign: 'center', lineHeight: 22 },
-  emptyBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: Spacing.xs,
-    backgroundColor: Colors.primary, borderRadius: Radius.full,
-    paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm + 2, marginTop: Spacing.lg,
+  kidCardEmptyText: {
+    fontSize: FontSize.xs, color: Colors.primary,
+    fontWeight: FontWeight.medium, textAlign: 'center',
   },
-  emptyBtnText: { color: Colors.textOnDark, fontWeight: FontWeight.medium, fontSize: FontSize.md },
-  noResults: { alignItems: 'center', paddingVertical: Spacing.xl },
-  noResultsText: { color: Colors.textMuted, fontSize: FontSize.md },
+
+  // Posts section
+  // postsSection: {
+  //   marginHorizontal: Spacing.md, marginTop: Spacing.lg,
+  //   backgroundColor: Colors.surface,
+  //   borderRadius: Radius.xl,
+  //   borderWidth: 0.5, borderColor: Colors.border,
+  //   paddingHorizontal: Spacing.md, paddingBottom: Spacing.sm,
+  // },
+  // postsHeader: {
+  //   flexDirection: 'row', alignItems: 'center',
+  //   justifyContent: 'space-between',
+  //   paddingTop: Spacing.md, paddingBottom: Spacing.sm,
+  //   borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight,
+  //   marginBottom: Spacing.sm,
+  // },
+  // postsLabel: {
+  //   fontSize: FontSize.lg, fontWeight: FontWeight.semibold, color: Colors.textPrimary,
+  // },
+
+  // Threads-style post
+  // threadPost: {
+  //   flexDirection: 'row',
+  //   paddingVertical: Spacing.md,
+  //   borderBottomWidth: 0.5,
+  //   borderBottomColor: Colors.borderLight,
+  // },
+  // threadLeft: {
+  //   width: 40, alignItems: 'center', marginRight: Spacing.sm,
+  // },
+  // threadAvatar: {
+  //   width: 36, height: 36, borderRadius: 18,
+  //   backgroundColor: Colors.primaryPale,
+  //   alignItems: 'center', justifyContent: 'center',
+  // },
+  // threadAvatarText: {
+  //   fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.primary,
+  // },
+  // threadLine: {
+  //   width: 2, flex: 1,
+  //   backgroundColor: Colors.borderLight,
+  //   marginTop: 6, borderRadius: 1,
+  // },
+  // threadRight: { flex: 1 },
+  // threadHeader: {
+  //   flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+  // },
+  // threadAuthorRow: {
+  //   flexDirection: 'row', alignItems: 'center', gap: 5,
+  // },
+  // threadAuthorName: {
+  //   fontSize: FontSize.md, fontWeight: FontWeight.semibold, color: Colors.textPrimary,
+  // },
+  // threadTypeBadge: {
+  //   width: 18, height: 18, borderRadius: 9,
+  //   alignItems: 'center', justifyContent: 'center',
+  // },
+  // threadHeaderRight: {
+  //   flexDirection: 'row', alignItems: 'center', gap: 6,
+  // },
+  // threadTime: {
+  //   fontSize: FontSize.xs, color: Colors.textSecondary, fontWeight: FontWeight.medium,
+  // },
+  // threadMenuBtn: { padding: 2 },
+  // threadChildTag: {
+  //   flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2,
+  // },
+  // threadChildName: {
+  //   fontSize: FontSize.xs, color: Colors.blooming, fontWeight: FontWeight.medium,
+  // },
+  // threadContent: {
+  //   fontSize: FontSize.md, color: Colors.textPrimary,
+  //   lineHeight: 22, marginTop: 6,
+  // },
+  // threadImage: {
+  //   width: '100%', height: 200,
+  //   borderRadius: Radius.md, marginTop: Spacing.sm,
+  //   backgroundColor: Colors.surfaceSecondary,
+  // },
+  // threadActions: {
+  //   flexDirection: 'row', alignItems: 'center', gap: Spacing.lg,
+  //   marginTop: Spacing.sm, paddingTop: 4,
+  // },
+  // threadActionBtn: {
+  //   flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4,
+  // },
+  // threadActionCount: {
+  //   fontSize: FontSize.sm, color: Colors.textMuted, fontWeight: FontWeight.medium,
+  // },
+
+  // Show more button
+  // showMoreBtn: {
+  //   flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+  //   gap: 4, paddingVertical: Spacing.md,
+  // },
+  // showMoreText: {
+  //   fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.medium,
+  // },
+
+  // Empty posts
+  // emptyPosts: {
+  //   alignItems: 'center', paddingVertical: Spacing.xxl, gap: Spacing.md,
+  // },
+  // emptyPostsIcon: {
+  //   width: 64, height: 64, borderRadius: 32,
+  //   backgroundColor: Colors.primaryPale,
+  //   alignItems: 'center', justifyContent: 'center',
+  //   marginBottom: Spacing.xs,
+  // },
+  // emptyPostsTitle: {
+  //   fontSize: FontSize.lg, fontWeight: FontWeight.semibold,
+  //   color: Colors.textPrimary, textAlign: 'center',
+  //   paddingHorizontal: Spacing.lg,
+  // },
+  // emptyPostsText: {
+  //   fontSize: FontSize.sm, color: Colors.textMuted,
+  //   textAlign: 'center', paddingHorizontal: Spacing.xl, lineHeight: 20,
+  // },
+  // emptyPostsBtn: {
+  //   flexDirection: 'row', alignItems: 'center', gap: 6,
+  //   backgroundColor: Colors.accent,
+  //   paddingHorizontal: Spacing.xl, paddingVertical: Spacing.md,
+  //   borderRadius: Radius.lg, marginTop: Spacing.sm,
+  // },
+  // emptyPostsBtnText: {
+  //   color: '#fff', fontSize: FontSize.md, fontWeight: FontWeight.semibold,
+  // },
 });

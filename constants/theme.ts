@@ -28,13 +28,12 @@ export const FontSize = {
   xxxl: 28,
 };
 
-// Design system: only 400 (regular) and 500 (medium)
 export const FontWeight = {
-  regular: '400' as const,
-  medium:  '500' as const,
-  semibold:'500' as const, // aliased → 500
-  bold:    '500' as const, // aliased → 500
-  heavy:   '500' as const, // aliased → 500
+  regular:  '400' as const,
+  medium:   '500' as const,
+  semibold: '600' as const,
+  bold:     '700' as const,
+  heavy:    '800' as const,
 };
 
 export const TAB_BAR_HEIGHT = 56;

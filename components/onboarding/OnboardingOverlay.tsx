@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Modal, View, Text, TouchableOpacity, StyleSheet,
-  Animated, Dimensions, Platform,
+  Animated, Dimensions, Platform, StatusBar,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/colors';
@@ -81,10 +81,14 @@ export function OnboardingOverlay({ steps, visible, onComplete }: Props) {
   const hl = current?.highlight;
 
   // ── Spotlight geometry ──────────────────────────────────────────────────
+  // Modal is statusBarTranslucent so Y=0 is at screen top, but measureInWindow
+  // and Dimensions.get('window') give coords relative to below the status bar.
+  const statusBarOffset = Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0;
+
   const sp = hl
     ? {
         x: hl.x - SPOTLIGHT_PAD,
-        y: hl.y - SPOTLIGHT_PAD,
+        y: hl.y - SPOTLIGHT_PAD + statusBarOffset,
         w: hl.w + SPOTLIGHT_PAD * 2,
         h: hl.h + SPOTLIGHT_PAD * 2,
         r: (hl.radius ?? Math.min(hl.w, hl.h) / 2) + SPOTLIGHT_PAD,

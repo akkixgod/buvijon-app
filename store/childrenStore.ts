@@ -5,14 +5,16 @@ import { Child, FlowerVariant } from '@/types';
 interface ChildrenState {
   children: Child[];
   isLoading: boolean;
+  currentActiveChildId: string | null;  // Tracks which child is currently active (via PIN)
 
   loadChildren: () => Promise<void>;
-  addChild: (data: Omit<Child, 'id' | 'createdAt' | 'screenTimeToday' | 'screenTimeWeek' | 'isActive'>) => Promise<void>;
+  addChild: (data: Omit<Child, 'id' | 'createdAt' | 'screenTimeToday' | 'screenTimeWeek' | 'blockedApps' | 'isActive'>) => Promise<void>;
   updateChild: (id: string, data: Partial<Child>) => Promise<void>;
   removeChild: (id: string) => Promise<void>;
   addScreenTime: (childId: string, minutes: number) => Promise<void>;
   resetDailyTime: (childId: string) => Promise<void>;
   getChildById: (id: string) => Child | undefined;
+  setActiveChildId: (id: string | null) => void;
 }
 
 function rowToChild(row: any): Child {
@@ -23,9 +25,11 @@ function rowToChild(row: any): Child {
     avatar: row.avatar,
     flowerVariant: row.flower_variant as FlowerVariant,
     flowerColor: row.flower_color,
+    pin: row.pin ?? '0000',
     dailyLimitMinutes: row.daily_limit_minutes,
     screenTimeToday: row.screen_time_today,
     screenTimeWeek: row.screen_time_week ?? [0, 0, 0, 0, 0, 0, 0],
+    blockedApps: row.blocked_apps ?? [],
     isActive: row.is_active,
     lastSeen: row.last_seen,
     createdAt: row.created_at,
@@ -35,6 +39,7 @@ function rowToChild(row: any): Child {
 export const useChildrenStore = create<ChildrenState>((set, get) => ({
   children: [],
   isLoading: false,
+  currentActiveChildId: null,
 
   loadChildren: async () => {
     set({ isLoading: true });
@@ -68,11 +73,13 @@ export const useChildrenStore = create<ChildrenState>((set, get) => ({
         parent_id: user.id,
         name: data.name,
         age: data.age,
+        pin: data.pin,
         flower_variant: data.flowerVariant,
         flower_color: data.flowerColor,
         daily_limit_minutes: data.dailyLimitMinutes,
         screen_time_today: 0,
         screen_time_week: [0, 0, 0, 0, 0, 0, 0],
+        blocked_apps: [],
         is_active: true,
       })
       .select()
@@ -87,11 +94,13 @@ export const useChildrenStore = create<ChildrenState>((set, get) => ({
     const updates: Record<string, any> = {};
     if (data.name !== undefined) updates.name = data.name;
     if (data.age !== undefined) updates.age = data.age;
+    if (data.pin !== undefined) updates.pin = data.pin;
     if (data.flowerVariant !== undefined) updates.flower_variant = data.flowerVariant;
     if (data.flowerColor !== undefined) updates.flower_color = data.flowerColor;
     if (data.dailyLimitMinutes !== undefined) updates.daily_limit_minutes = data.dailyLimitMinutes;
     if (data.screenTimeToday !== undefined) updates.screen_time_today = data.screenTimeToday;
     if (data.screenTimeWeek !== undefined) updates.screen_time_week = data.screenTimeWeek;
+    if (data.blockedApps !== undefined) updates.blocked_apps = data.blockedApps;
     if (data.isActive !== undefined) updates.is_active = data.isActive;
     if (data.lastSeen !== undefined) updates.last_seen = data.lastSeen;
 
@@ -158,4 +167,5 @@ export const useChildrenStore = create<ChildrenState>((set, get) => ({
   },
 
   getChildById: (id) => get().children.find(c => c.id === id),
+  setActiveChildId: (id) => set({ currentActiveChildId: id }),
 }));

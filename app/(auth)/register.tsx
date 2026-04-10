@@ -7,7 +7,9 @@ import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Button } from '@/components/ui/Button';
+import { GoogleIcon } from '@/components/ui/GoogleIcon';
 import { useAuthStore } from '@/store/authStore';
+import { supabase } from '@/lib/supabase';
 import { Colors } from '@/constants/colors';
 import { Spacing, Radius, FontSize, FontWeight } from '@/constants/theme';
 import { useTranslation } from '@/i18n';
@@ -16,9 +18,11 @@ export default function RegisterScreen() {
   const router = useRouter();
   const t = useTranslation();
   const sendOtp = useAuthStore(s => s.sendOtp);
+  const signInWithGoogle = useAuthStore(s => s.signInWithGoogle);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleContinue = async () => {
@@ -27,6 +31,19 @@ export default function RegisterScreen() {
     if (!email.includes('@')) { setError(t.register.errInvalidEmail); return; }
     setError('');
     setLoading(true);
+
+    // Проверяем, не зарегистрирован ли уже этот email
+    const { data: existing } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('email', email.trim().toLowerCase())
+      .maybeSingle();
+    if (existing) {
+      setLoading(false);
+      setError(t.register.errExists);
+      return;
+    }
+
     const result = await sendOtp(email);
     setLoading(false);
     if (result.ok) {
@@ -37,7 +54,7 @@ export default function RegisterScreen() {
   };
 
   return (
-    <LinearGradient colors={['#FFFFFF', '#FFF0F7', '#FFFFFF']} style={styles.container}>
+    <LinearGradient colors={['#FFFFFF', '#F5F0FF', '#FFFFFF']} style={styles.container}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.inner}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <View style={styles.form}>
@@ -81,6 +98,36 @@ export default function RegisterScreen() {
 
             <Button title={t.register.submit} onPress={handleContinue} loading={loading} size="lg" style={styles.btn} />
 
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>{t.login.orDivider}</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            <TouchableOpacity
+              style={[styles.googleBtn, googleLoading && styles.googleBtnDisabled]}
+              onPress={async () => {
+                setGoogleLoading(true);
+                setError('');
+                const result = await signInWithGoogle();
+                setGoogleLoading(false);
+                if (result.ok) {
+                  router.replace('/(tabs)');
+                } else {
+                  setError(result.error ?? 'Google error');
+                }
+              }}
+              disabled={googleLoading}
+              activeOpacity={0.8}
+            >
+              <View style={styles.googleIconWrap}>
+                <GoogleIcon size={18} />
+              </View>
+              <Text style={styles.googleBtnText}>
+                {googleLoading ? '...' : t.login.google}
+              </Text>
+            </TouchableOpacity>
+
             <TouchableOpacity onPress={() => router.back()} style={styles.link}>
               <Text style={styles.linkText}>
                 {t.register.hasAccount}{'  '}
@@ -123,6 +170,35 @@ const styles = StyleSheet.create({
   },
   error: { color: Colors.wilting, fontSize: FontSize.sm, marginTop: Spacing.sm },
   btn: { marginTop: Spacing.xl },
+  dividerRow: {
+    flexDirection: 'row', alignItems: 'center',
+    marginTop: Spacing.lg, marginBottom: Spacing.sm,
+  },
+  dividerLine: { flex: 1, height: 0.5, backgroundColor: Colors.border },
+  dividerText: {
+    marginHorizontal: Spacing.md,
+    fontSize: FontSize.sm, color: Colors.textMuted,
+  },
+  googleBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: Spacing.sm,
+    paddingVertical: 14,
+    borderRadius: Radius.lg,
+    backgroundColor: '#fff',
+    borderWidth: 1, borderColor: '#dadce0',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1, shadowRadius: 3,
+    elevation: 2,
+  },
+  googleBtnDisabled: { opacity: 0.6 },
+  googleIconWrap: {
+    width: 24, height: 24,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  googleBtnText: {
+    fontSize: FontSize.md, fontWeight: FontWeight.medium,
+    color: '#3c4043',
+  },
   link: { alignItems: 'center', marginTop: Spacing.md },
   linkText: { fontSize: FontSize.sm, color: Colors.textMuted },
   linkBold: { color: Colors.primary, fontWeight: FontWeight.medium },
