@@ -7,7 +7,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { AnimatedFlower } from '@/components/flower/AnimatedFlower';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { AddChildModal } from '@/components/child/AddChildModal';
 import { ParentPinModal } from '@/components/parent-pin/ParentPinModal';
@@ -119,6 +118,13 @@ function ChildCard({ item, index, t, onPress }: {
   const percent = getUsagePercent(item.screenTimeToday, item.dailyLimitMinutes);
   const stateColor = FlowerColors[state];
 
+  const initials = item.name
+    .split(' ')
+    .map((w: string) => w[0] ?? '')
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.timing(fadeAnim, {
@@ -134,17 +140,15 @@ function ChildCard({ item, index, t, onPress }: {
       transform: [{ translateY: fadeAnim.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
     }}>
       <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.85}>
-        {/* Left accent */}
-        <View style={[styles.cardAccent, { backgroundColor: stateColor.primary }]} />
 
-        {/* Flower */}
-        <AnimatedFlower
-          variant={item.flowerVariant}
-          color={item.flowerColor}
-          usedMinutes={item.screenTimeToday}
-          limitMinutes={item.dailyLimitMinutes}
-          size={58}
-        />
+        {/* Avatar with initials */}
+        <View style={[styles.avatar, {
+          backgroundColor: item.flowerColor + '22',
+          borderColor: item.flowerColor,
+        }]}>
+          <Text style={[styles.avatarText, { color: item.flowerColor }]}>{initials}</Text>
+          <View style={[styles.stateDot, { backgroundColor: stateColor.primary }]} />
+        </View>
 
         {/* Info */}
         <View style={styles.cardBody}>
@@ -224,14 +228,27 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderRadius: Radius.lg,
     borderWidth: 0.5, borderColor: Colors.border,
-    overflow: 'hidden',
+    paddingHorizontal: ms(14), paddingVertical: ms(12),
+    gap: ms(14),
     ...Shadow.sm,
   },
-  cardAccent: {
-    width: 3, alignSelf: 'stretch',
+  avatar: {
+    width: ms(50), height: ms(50),
+    borderRadius: ms(16),
+    borderWidth: 2,
+    alignItems: 'center', justifyContent: 'center',
+    flexShrink: 0,
+  },
+  avatarText: {
+    fontSize: fs(16), fontWeight: FontWeight.semibold,
+  },
+  stateDot: {
+    position: 'absolute', bottom: -3, right: -3,
+    width: 13, height: 13, borderRadius: 7,
+    borderWidth: 2, borderColor: Colors.surface,
   },
   cardBody: {
-    flex: 1, paddingVertical: ms(12), paddingRight: ms(4), paddingLeft: ms(12), gap: 3,
+    flex: 1, gap: 3,
   },
   nameRow: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
