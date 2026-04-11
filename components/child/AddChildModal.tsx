@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import {
   View, Text, TextInput, StyleSheet, ScrollView,
-  TouchableOpacity, KeyboardAvoidingView, Platform,
+  TouchableOpacity,
 } from 'react-native';
 import Modal from 'react-native-modal';
 import * as Haptics from 'expo-haptics';
@@ -215,12 +215,16 @@ export function AddChildModal({ visible, onClose }: AddChildModalProps) {
       swipeDirection="down"
       style={styles.modal}
       avoidKeyboard
+      propagateSwipe
     >
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={styles.sheet}>
-          <View style={styles.handle} />
+      <View style={styles.sheet}>
+        <View style={styles.handle} />
 
-          <ScrollView showsVerticalScrollIndicator={false}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ paddingBottom: 32 }}
+        >
             <Text style={styles.title}>{t.addChild.title}</Text>
             <Text style={styles.subtitle}>{t.addChild.subtitle}</Text>
 
@@ -297,9 +301,8 @@ export function AddChildModal({ visible, onClose }: AddChildModalProps) {
               style={styles.addButton}
               size="lg"
             />
-          </ScrollView>
-        </View>
-      </KeyboardAvoidingView>
+        </ScrollView>
+      </View>
     </Modal>
   );
 }
@@ -311,7 +314,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.xxl,
     paddingTop: Spacing.md,
     maxHeight: '94%',
   },

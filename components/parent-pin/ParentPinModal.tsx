@@ -235,10 +235,12 @@ const styles = StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   container: {
-    width: '85%',
-    maxWidth: 360,
+    width: '88%',
+    maxWidth: 380,
     backgroundColor: Colors.surface,
     borderRadius: 24,
     padding: Spacing.xl,

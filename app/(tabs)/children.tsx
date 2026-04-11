@@ -33,7 +33,7 @@ export default function ChildrenScreen() {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       if (nextAppState === 'active' && isUnlocked) {
         if (lockTimer) clearTimeout(lockTimer);
-        lockTimer = setTimeout(() => lock(), 5 * 60 * 1000);
+        lockTimer = setTimeout(() => lock(), 60 * 1000);
       }
     });
     return () => {
