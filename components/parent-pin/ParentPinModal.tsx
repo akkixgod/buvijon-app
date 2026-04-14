@@ -51,6 +51,14 @@ export function ParentPinModal({ visible, onClose, onSuccess }: ParentPinModalPr
     }
   }, [visible]);
 
+  // Auto-trigger biometric when modal opens (if enabled and not in setup mode)
+  useEffect(() => {
+    if (visible && isBiometricEnabled && !showSetup) {
+      const timer = setTimeout(() => handleBiometric(), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [visible, isBiometricEnabled, showSetup]);
+
   const handleBiometric = async () => {
     setError('');
     setLoading(true);
