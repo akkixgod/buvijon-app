@@ -2,7 +2,10 @@ import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { StyleSheet, View, Text, Animated, LogBox } from 'react-native';
+import {
+  StyleSheet, View, Text, Animated, LogBox,
+  Platform, NativeEventEmitter, NativeModules,
+} from 'react-native';
 
 // Suppress SplashScreen errors in Expo Go
 LogBox.ignoreLogs(['SplashModule', 'internalPreventAutoHideAsync', 'internalMaybeHideAsync']);
@@ -33,6 +36,13 @@ import { useOnboardingStore } from '@/store/onboardingStore';
 import { BuvijonLogo } from '@/components/ui/BuvijonLogo';
 import { Colors } from '@/constants/colors';
 import { FontSize, FontWeight } from '@/constants/theme';
+
+let ScreenTime: typeof import('screen-time') | null = null;
+try {
+  ScreenTime = require('screen-time');
+} catch {
+  ScreenTime = null;
+}
 
 function SplashView() {
   const language = useSettingsStore(s => s.language);
@@ -101,6 +111,40 @@ export default function RootLayout() {
     }
   }, [isAuthenticated]);
 
+  // Listen for child PIN entries on the blocker overlay → keep currentActiveChildId in sync
+  useEffect(() => {
+    if (Platform.OS !== 'android' || !ScreenTime) return;
+
+    const setActiveChildId = useChildrenStore.getState().setActiveChildId;
+    const syncActive = useChildrenStore.getState().syncActiveChildFromNative;
+
+    // Pull initial value (e.g. after device reboot the service may already
+    // have a persisted active child)
+    syncActive();
+
+    let emitter: NativeEventEmitter | null = null;
+    try {
+      emitter = new NativeEventEmitter(NativeModules.ScreenTime);
+    } catch {
+      return;
+    }
+
+    ScreenTime.listenPinVerified();
+
+    const sub1 = emitter.addListener('PIN_VERIFIED', (e: { childId: string }) => {
+      if (e?.childId) setActiveChildId(e.childId);
+    });
+    const sub2 = emitter.addListener('ACTIVE_CHILD_CHANGED', (e: { newChildId: string }) => {
+      setActiveChildId(e?.newChildId && e.newChildId.length > 0 ? e.newChildId : null);
+    });
+
+    return () => {
+      sub1.remove();
+      sub2.remove();
+      ScreenTime?.unlistenPinVerified();
+    };
+  }, []);
+
   if (isLoading) return <SplashView />;
 
   return (
@@ -109,6 +153,7 @@ export default function RootLayout() {
       <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="(auth)" options={{ animation: 'fade' }} />
+        <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
         <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
         <Stack.Screen name="child/[id]" />
       </Stack>

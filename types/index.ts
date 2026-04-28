@@ -51,6 +51,7 @@ export interface Parent {
   phone: string;
   email?: string;
   avatar?: string;
+  username?: string;
   isPremium: boolean;
   createdAt: string;
 }

@@ -1,6 +1,14 @@
 import { create } from 'zustand';
+import { Platform } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { Child, FlowerVariant } from '@/types';
+
+let ScreenTime: typeof import('screen-time') | null = null;
+try {
+  ScreenTime = require('screen-time');
+} catch {
+  ScreenTime = null;
+}
 
 interface ChildrenState {
   children: Child[];
@@ -15,6 +23,8 @@ interface ChildrenState {
   resetDailyTime: (childId: string) => Promise<void>;
   getChildById: (id: string) => Child | undefined;
   setActiveChildId: (id: string | null) => void;
+  syncActiveChildFromNative: () => void;
+  logoutActiveChild: () => void;
 }
 
 function rowToChild(row: any): Child {
@@ -168,4 +178,25 @@ export const useChildrenStore = create<ChildrenState>((set, get) => ({
 
   getChildById: (id) => get().children.find(c => c.id === id),
   setActiveChildId: (id) => set({ currentActiveChildId: id }),
+
+  syncActiveChildFromNative: () => {
+    if (Platform.OS !== 'android' || !ScreenTime) return;
+    try {
+      const id = ScreenTime.getActiveChildId();
+      set({ currentActiveChildId: id });
+    } catch {
+      // Native module may not be linked (Expo Go) — ignore
+    }
+  },
+
+  logoutActiveChild: () => {
+    set({ currentActiveChildId: null });
+    if (Platform.OS === 'android' && ScreenTime) {
+      try {
+        ScreenTime.logoutChild();
+      } catch {
+        // best-effort: state already cleared above
+      }
+    }
+  },
 }));

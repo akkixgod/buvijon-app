@@ -61,7 +61,7 @@ export default function ChildDetailScreen() {
   const getChildById = useChildrenStore(s => s.getChildById);
   const removeChild = useChildrenStore(s => s.removeChild);
   const child = getChildById(id);
-  const screenTime = useScreenTime();
+  const screenTime = useScreenTime(id);
   const { isUnlocked } = useParentPinStore();
   const [showPinModal, setShowPinModal] = useState(false);
 
@@ -118,7 +118,7 @@ export default function ChildDetailScreen() {
       const startMs = todayStart + p.start * 3600_000;
       const endMs   = Math.min(todayStart + p.end * 3600_000, now.getTime());
       if (endMs <= startMs) return { ...p, minutes: 0 };
-      const apps = ScreenTime!.getUsageStats(startMs, endMs);
+      const apps = ScreenTime!.getUsageStatsForChild(id, startMs, endMs);
       const minutes = apps.reduce((sum, a) => sum + a.totalMinutes, 0);
       return { ...p, minutes };
     });
@@ -209,34 +209,6 @@ export default function ChildDetailScreen() {
             <Text style={styles.percentText}>{percent}%</Text>
           </View>
         </View>
-
-        {/* По времени дня */}
-        {periodStats && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{t.childDetail.byPeriod ?? 'По времени дня'}</Text>
-            <View style={styles.periodsCard}>
-              {periodStats.map((p, i) => {
-                const maxMin = Math.max(...periodStats.map(x => x.minutes), 1);
-                const barW = Math.max(0, (p.minutes / maxMin) * 100);
-                return (
-                  <View key={p.key}>
-                    {i > 0 && <View style={styles.periodDivider} />}
-                    <View style={styles.periodRow}>
-                      <Text style={styles.periodIcon}>{p.icon}</Text>
-                      <Text style={styles.periodLabel}>{p.label}</Text>
-                      <View style={styles.periodBarTrack}>
-                        <View style={[styles.periodBarFill, { width: `${barW}%` }]} />
-                      </View>
-                      <Text style={styles.periodTime}>
-                        {p.minutes > 0 ? formatDurationT(p.minutes, t) : '—'}
-                      </Text>
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
-          </View>
-        )}
 
         {/* Неделя */}
         <View style={styles.section}>
@@ -453,27 +425,6 @@ const styles = StyleSheet.create({
   },
   appBarFill: { height: 4, borderRadius: 2 },
   appLaunches: { fontSize: FontSize.xs, color: Colors.textMuted },
-  periodsCard: {
-    backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.md,
-    borderWidth: 0.5, borderColor: Colors.border,
-  },
-  periodRow: {
-    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: 10,
-  },
-  periodDivider: { height: 0.5, backgroundColor: Colors.borderLight },
-  periodIcon: { fontSize: 18, width: 26, textAlign: 'center' },
-  periodLabel: { fontSize: FontSize.sm, color: Colors.textSecondary, width: 52 },
-  periodBarTrack: {
-    flex: 1, height: 6, backgroundColor: Colors.borderLight,
-    borderRadius: 3, overflow: 'hidden',
-  },
-  periodBarFill: {
-    height: 6, borderRadius: 3, backgroundColor: Colors.primary + 'AA',
-  },
-  periodTime: {
-    fontSize: FontSize.sm, fontWeight: FontWeight.semibold,
-    color: Colors.textPrimary, width: 64, textAlign: 'right',
-  },
   permissionBlock: {
     alignItems: 'center', paddingVertical: Spacing.lg, gap: Spacing.sm,
   },

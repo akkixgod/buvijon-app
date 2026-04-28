@@ -28,21 +28,23 @@ class AppBlockerService : Service() {
     private const val CHANNEL_ID = "app_blocker_channel"
     private const val NOTIFICATION_ID = 1001
     private const val POLL_INTERVAL_MS = 1500L
-    private const val GRACE_PERIOD_MS = 60_000L // 1 minute grace after correct PIN
 
     // Actions
     const val ACTION_SET_CHILD_PIN = "expo.modules.screentime.SET_CHILD_PIN"
     const val ACTION_PIN_VERIFIED = "expo.modules.screentime.PIN_VERIFIED"
+    const val ACTION_ACTIVE_CHILD_CHANGED = "expo.modules.screentime.ACTIVE_CHILD_CHANGED"
+
+    // Service actions
+    const val SERVICE_ACTION_LOGOUT = "LOGOUT"
 
     // Extras
     const val EXTRA_CHILD_ID = "child_id"
     const val EXTRA_CHILD_NAME = "child_name"
     const val EXTRA_CHILD_PIN = "child_pin"
+    const val EXTRA_PREVIOUS_CHILD_ID = "previous_child_id"
 
     // Static storage for child info (preserved across service restarts)
     private val childPinMap = mutableMapOf<String, String>()
-    private var currentChildId: String? = null
-    private var pinVerifiedAt: Long = 0
   }
 
   private var blockedPackages = listOf<String>()
@@ -51,6 +53,7 @@ class AppBlockerService : Service() {
   private var overlayView: LinearLayout? = null
   private var windowManager: WindowManager? = null
   private var isOverlayShown = false
+  private var isPolling = false
   private var pinInput: EditText? = null
   private var messageView: TextView? = null
 
@@ -59,6 +62,26 @@ class AppBlockerService : Service() {
       checkForegroundApp()
       handler.postDelayed(this, POLL_INTERVAL_MS)
     }
+  }
+
+  private fun startPolling() {
+    if (isPolling) return
+    isPolling = true
+    handler.post(pollRunnable)
+  }
+
+  private fun stopPolling() {
+    handler.removeCallbacks(pollRunnable)
+    isPolling = false
+  }
+
+  private fun emitActiveChildChanged(previous: String?, next: String?) {
+    val intent = Intent(ACTION_ACTIVE_CHILD_CHANGED).apply {
+      `package` = packageName
+      if (previous != null) putExtra(EXTRA_PREVIOUS_CHILD_ID, previous)
+      if (next != null) putExtra(EXTRA_CHILD_ID, next)
+    }
+    sendBroadcast(intent)
   }
 
   // Broadcast receiver for setting child PIN from JS
@@ -94,12 +117,19 @@ class AppBlockerService : Service() {
 
         if (childId != null && pin != null) {
           childPinMap[childId] = pin
-          currentChildId = null // Reset current child when starting blocker
-          pinVerifiedAt = 0
         }
 
         startForeground(NOTIFICATION_ID, buildNotification())
-        handler.post(pollRunnable)
+        startPolling()
+      }
+      SERVICE_ACTION_LOGOUT -> {
+        val previous = ChildSessionStore.getActiveChildId(this)
+        if (previous != null) {
+          ChildSessionStore.setActiveChildId(this, null)
+          emitActiveChildChanged(previous, null)
+        }
+        // Keep service alive so the next blocked-app launch shows the overlay.
+        startPolling()
       }
       else -> {
         stopSelf()
@@ -109,7 +139,7 @@ class AppBlockerService : Service() {
   }
 
   override fun onDestroy() {
-    handler.removeCallbacks(pollRunnable)
+    stopPolling()
     hideOverlay()
     try {
       unregisterReceiver(pinReceiver)
@@ -123,19 +153,21 @@ class AppBlockerService : Service() {
 
   private fun checkForegroundApp() {
     val foregroundPkg = getForegroundPackage() ?: return
+    val isBlocked = blockedPackages.contains(foregroundPkg)
+    val activeChildId = ChildSessionStore.getActiveChildId(this)
 
-    // Check if within grace period after correct PIN
-    if (System.currentTimeMillis() - pinVerifiedAt < GRACE_PERIOD_MS) {
+    if (!isBlocked) {
       hideOverlay()
       return
     }
 
-    if (blockedPackages.contains(foregroundPkg)) {
-      if (!isOverlayShown) {
-        showOverlay()
-      }
-    } else {
+    if (activeChildId != null) {
+      // Continuous attribution: count this poll tick toward the active child
+      // and let them keep using the app without re-asking the PIN.
       hideOverlay()
+      ChildSessionStore.incrementUsage(this, activeChildId, foregroundPkg, POLL_INTERVAL_MS)
+    } else if (!isOverlayShown) {
+      showOverlay()
     }
   }
 
@@ -303,16 +335,20 @@ class AppBlockerService : Service() {
     if (enteredPin.length == 4) {
       val foundChildId = childPinMap.entries.find { it.value == enteredPin }?.key
       if (foundChildId != null) {
-        // Correct PIN
-        currentChildId = foundChildId
-        pinVerifiedAt = System.currentTimeMillis()
+        // Correct PIN — open/switch attribution session
+        val previous = ChildSessionStore.getActiveChildId(this)
+        ChildSessionStore.setActiveChildId(this, foundChildId)
+        if (previous != foundChildId) {
+          emitActiveChildChanged(previous, foundChildId)
+        }
 
         // Send broadcast to React Native
-        val intent = Intent(ACTION_PIN_VERIFIED).apply {
+        val pinIntent = Intent(ACTION_PIN_VERIFIED).apply {
+          `package` = packageName
           putExtra(EXTRA_CHILD_ID, foundChildId)
           putExtra(EXTRA_CHILD_NAME, childName)
         }
-        sendBroadcast(intent)
+        sendBroadcast(pinIntent)
 
         hideOverlay()
 

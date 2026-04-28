@@ -26,6 +26,8 @@ export interface T {
     subtitle: string;
     nameLabel: string;
     namePlaceholder: string;
+    usernameLabel: string;
+    usernamePlaceholder: string;
     emailLabel: string;
     submit: string;
     hasAccount: string;
@@ -36,6 +38,9 @@ export interface T {
     errInvalidEmail: string;
     errSend: string;
     errExists: string;
+    errUsername: string;
+    errUsernameTaken: string;
+    errUsernameFormat: string;
   };
 
   otp: {
@@ -61,6 +66,7 @@ export interface T {
     settings: string;
     create: string;
     ai: string;
+    search: string;
   };
 
   garden: {
@@ -111,6 +117,22 @@ export interface T {
     logoutAlertMsg: string;
     logoutCancel: string;
     logoutConfirm: string;
+    usernameLabel: string;
+    editAvatarHint: string;
+  };
+
+  search: {
+    headerTitle: string;
+    placeholder: string;
+    emptyTitle: string;
+    emptyBody: string;
+    noResults: string;
+    loading: string;
+  };
+
+  profile: {
+    uploadAvatar: string;
+    uploadError: string;
   };
 
   childDetail: {
@@ -329,6 +351,11 @@ const ru: T = {
     errInvalidEmail: 'Введите корректный email',
     errSend: 'Ошибка отправки кода',
     errExists: 'Аккаунт с таким email уже существует. Войдите',
+    errUsername: 'Введите имя пользователя',
+    errUsernameTaken: 'Это имя уже занято',
+    errUsernameFormat: '3–20 символов: буквы, цифры, подчёркивание',
+    usernameLabel: 'Имя пользователя',
+    usernamePlaceholder: 'например: kamola_95',
   },
   otp: {
     titleConfirm: 'Подтверждение email',
@@ -352,6 +379,7 @@ const ru: T = {
     settings: 'Настройки',
     create: 'Пост',
     ai: 'ИИ',
+    search: 'Поиск',
   },
   garden: {
     subtitle: 'Мой сад 🌿',
@@ -398,6 +426,8 @@ const ru: T = {
     logoutAlertMsg: 'Хотите выйти из аккаунта?',
     logoutCancel: 'Отмена',
     logoutConfirm: 'Выйти',
+    usernameLabel: 'Имя пользователя',
+    editAvatarHint: 'Нажмите для смены фото',
   },
   childDetail: {
     notFound: 'Ребёнок не найден',
@@ -593,6 +623,18 @@ const ru: T = {
       },
     ],
   },
+  search: {
+    headerTitle: 'Поиск',
+    placeholder: 'Поиск по имени или @username',
+    emptyTitle: 'Найдите родителей',
+    emptyBody: 'Введите имя или @username чтобы найти пользователей',
+    noResults: 'Никого не найдено',
+    loading: 'Поиск...',
+  },
+  profile: {
+    uploadAvatar: 'Сменить фото',
+    uploadError: 'Не удалось загрузить фото',
+  },
 };
 
 const uzCyrillic: T = {
@@ -627,6 +669,11 @@ const uzCyrillic: T = {
     errInvalidEmail: 'Тўғри емаил киритинг',
     errSend: 'Код юборишда хато',
     errExists: 'Бу емаил билан аккаунт мавжуд. Киринг',
+    errUsername: 'Фойдаланувчи номини киритинг',
+    errUsernameTaken: 'Бу ном банд',
+    errUsernameFormat: '3–20 белги: ҳарфлар, рақамлар, _',
+    usernameLabel: 'Фойдаланувчи номи',
+    usernamePlaceholder: 'Масалан: kamola_95',
   },
   otp: {
     titleConfirm: 'Емайлни тасдиқлаш',
@@ -650,6 +697,7 @@ const uzCyrillic: T = {
     settings: 'Созламалар',
     create: 'Пост',
     ai: 'ЯИ',
+    search: 'Қидирув',
   },
   garden: {
     subtitle: 'Боғим 🌿',
@@ -696,6 +744,8 @@ const uzCyrillic: T = {
     logoutAlertMsg: 'Ҳисобингиздан чиқмоқчимисиз?',
     logoutCancel: 'Бекор қилиш',
     logoutConfirm: 'Чиқиш',
+    usernameLabel: 'Фойдаланувчи номи',
+    editAvatarHint: 'Расмни ўзгартириш учун босинг',
   },
   childDetail: {
     notFound: 'Бола топилмади',
@@ -891,6 +941,18 @@ const uzCyrillic: T = {
       },
     ],
   },
+  search: {
+    headerTitle: 'Қидирув',
+    placeholder: 'Исм ёки @username бўйича қидириш',
+    emptyTitle: 'Ота-оналарни топинг',
+    emptyBody: 'Фойдаланувчиларни топиш учун исм ёки @username киритинг',
+    noResults: 'Ҳеч ким топилмади',
+    loading: 'Қидириляпти...',
+  },
+  profile: {
+    uploadAvatar: 'Расмни ўзгартириш',
+    uploadError: 'Расмни юклаб бўлмади',
+  },
 };
 
 const uzLatin: T = {
@@ -925,6 +987,11 @@ const uzLatin: T = {
     errInvalidEmail: "To'g'ri email kiriting",
     errSend: 'Kod yuborishda xato',
     errExists: "Bu email bilan akkaunt mavjud. Kiring",
+    errUsername: 'Foydalanuvchi nomini kiriting',
+    errUsernameTaken: 'Bu nom band',
+    errUsernameFormat: "3–20 belgi: harflar, raqamlar, _",
+    usernameLabel: 'Foydalanuvchi nomi',
+    usernamePlaceholder: 'masalan: kamola_95',
   },
   otp: {
     titleConfirm: 'Emailni tasdiqlash',
@@ -948,6 +1015,7 @@ const uzLatin: T = {
     settings: 'Sozlamalar',
     create: 'Post',
     ai: 'AI',
+    search: 'Qidiruv',
   },
   garden: {
     subtitle: "Bog'im 🌿",
@@ -994,6 +1062,8 @@ const uzLatin: T = {
     logoutAlertMsg: 'Hisobingizdan chiqmoqchimisiz?',
     logoutCancel: 'Bekor qilish',
     logoutConfirm: 'Chiqish',
+    usernameLabel: 'Foydalanuvchi nomi',
+    editAvatarHint: "Rasmni o'zgartirish uchun bosing",
   },
   childDetail: {
     notFound: 'Bola topilmadi',
@@ -1188,6 +1258,18 @@ const uzLatin: T = {
         body: "Asoslarni bilib oldingiz. Birinchi farzandingizni qo'shishdan boshlang!",
       },
     ],
+  },
+  search: {
+    headerTitle: 'Qidiruv',
+    placeholder: "Ism yoki @username bo'yicha qidirish",
+    emptyTitle: 'Ota-onalarni toping',
+    emptyBody: "Foydalanuvchilarni topish uchun ism yoki @username kiriting",
+    noResults: 'Hech kim topilmadi',
+    loading: 'Qidirilmoqda...',
+  },
+  profile: {
+    uploadAvatar: "Rasmni o'zgartirish",
+    uploadError: "Rasmni yuklab bo'lmadi",
   },
 };
 

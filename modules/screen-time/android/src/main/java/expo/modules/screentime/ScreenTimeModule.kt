@@ -1,13 +1,11 @@
 package expo.modules.screentime
 
 import android.app.AppOpsManager
-import android.app.usage.UsageStats
 import android.app.usage.UsageStatsManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -66,64 +64,32 @@ class ScreenTimeModule : Module() {
     // Returns: Array of { packageName, appName, totalMinutes, lastUsed, launchCount }
     Function("getUsageStats") { startTime: Double, endTime: Double ->
       val context = appContext.reactContext ?: return@Function emptyList<Map<String, Any>>()
-      val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
-        ?: return@Function emptyList<Map<String, Any>>()
-
-      val stats = usm.queryUsageStats(
-        UsageStatsManager.INTERVAL_DAILY,
-        startTime.toLong(),
-        endTime.toLong()
-      ) ?: return@Function emptyList<Map<String, Any>>()
-
       val pm = context.packageManager
+      val totalTimes = calculateAccurateStats(context, startTime.toLong(), endTime.toLong())
       val result = mutableListOf<Map<String, Any>>()
 
-      // Aggregate stats by package name
-      val aggregated = mutableMapOf<String, AggregatedStats>()
-      for (stat in stats) {
-        val pkg = stat.packageName
-        val totalTime = stat.totalTimeInForeground // milliseconds
-        if (totalTime < 60_000) continue // Skip apps used less than 1 minute
+      for ((pkg, totalMs) in totalTimes) {
+        if (totalMs < 60_000) continue // Skip apps used less than 1 minute
+        val isLaunchable = try { pm.getLaunchIntentForPackage(pkg) != null } catch (e: Exception) { false }
+        if (!isLaunchable) continue
 
-        val existing = aggregated[pkg]
-        if (existing != null) {
-          existing.totalTimeMs += totalTime
-          existing.lastUsed = maxOf(existing.lastUsed, stat.lastTimeUsed)
-        } else {
-          aggregated[pkg] = AggregatedStats(
-            totalTimeMs = totalTime,
-            lastUsed = stat.lastTimeUsed
-          )
-        }
-      }
-
-      for ((pkg, agg) in aggregated) {
         val appName = try {
-          val appInfo = pm.getApplicationInfo(pkg, 0)
-          pm.getApplicationLabel(appInfo).toString()
+          pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
         } catch (e: PackageManager.NameNotFoundException) {
           pkg.substringAfterLast(".")
         }
 
-        // Filter out system apps without a launcher icon
-        val isLaunchable = pm.getLaunchIntentForPackage(pkg) != null
-        if (!isLaunchable) continue
-
-        val totalMinutes = (agg.totalTimeMs / 60_000).toInt()
-
-        // Estimate launch count using UsageEvents
         val launchCount = getLaunchCount(context, pkg, startTime.toLong(), endTime.toLong())
 
         result.add(mapOf(
           "packageName" to pkg,
           "appName" to appName,
-          "totalMinutes" to totalMinutes,
-          "lastUsed" to agg.lastUsed,
+          "totalMinutes" to (totalMs / 60_000).toInt(),
+          "lastUsed" to 0L,
           "launchCount" to launchCount
         ))
       }
 
-      // Sort by totalMinutes descending
       result.sortByDescending { it["totalMinutes"] as Int }
       result
     }
@@ -208,27 +174,99 @@ class ScreenTimeModule : Module() {
       }
     }
 
-    // Register listener for PIN verified event
+    // Register listener for PIN verified event AND active-child-changed event
     AsyncFunction("listenPinVerified") {
       val module = this@ScreenTimeModule
       if (pinBroadcastReceiver == null) {
         pinBroadcastReceiver = object : BroadcastReceiver() {
           override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == AppBlockerService.ACTION_PIN_VERIFIED) {
-              val childId = intent.getStringExtra(AppBlockerService.EXTRA_CHILD_ID)
-              val childName = intent.getStringExtra(AppBlockerService.EXTRA_CHILD_NAME)
-              module.sendEvent("PIN_VERIFIED", mapOf(
-                "childId" to childId as Any,
-                "childName" to childName as Any
-              ))
+            when (intent?.action) {
+              AppBlockerService.ACTION_PIN_VERIFIED -> {
+                val childId = intent.getStringExtra(AppBlockerService.EXTRA_CHILD_ID)
+                val childName = intent.getStringExtra(AppBlockerService.EXTRA_CHILD_NAME)
+                module.sendEvent("PIN_VERIFIED", mapOf(
+                  "childId" to (childId ?: ""),
+                  "childName" to (childName ?: "")
+                ))
+              }
+              AppBlockerService.ACTION_ACTIVE_CHILD_CHANGED -> {
+                val previous = intent.getStringExtra(AppBlockerService.EXTRA_PREVIOUS_CHILD_ID)
+                val next = intent.getStringExtra(AppBlockerService.EXTRA_CHILD_ID)
+                module.sendEvent("ACTIVE_CHILD_CHANGED", mapOf(
+                  "previousChildId" to (previous ?: ""),
+                  "newChildId" to (next ?: "")
+                ))
+              }
             }
           }
         }
 
         val context = appContext.reactContext ?: return@AsyncFunction null
-        val filter = IntentFilter(AppBlockerService.ACTION_PIN_VERIFIED)
-        context.registerReceiver(pinBroadcastReceiver, filter)
+        val filter = IntentFilter().apply {
+          addAction(AppBlockerService.ACTION_PIN_VERIFIED)
+          addAction(AppBlockerService.ACTION_ACTIVE_CHILD_CHANGED)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+          context.registerReceiver(pinBroadcastReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+          @Suppress("UnspecifiedRegisterReceiverFlag")
+          context.registerReceiver(pinBroadcastReceiver, filter)
+        }
       }
+    }
+
+    // Get the currently active child (set by PIN entry, persisted in SharedPreferences)
+    Function("getActiveChildId") {
+      val context = appContext.reactContext ?: return@Function null
+      ChildSessionStore.getActiveChildId(context)
+    }
+
+    // Clear the active child + signal the blocker service to start asking PIN again
+    Function("logoutChild") {
+      val context = appContext.reactContext ?: return@Function false
+      try {
+        val intent = Intent(context, AppBlockerService::class.java).apply {
+          action = AppBlockerService.SERVICE_ACTION_LOGOUT
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+          context.startForegroundService(intent)
+        } else {
+          context.startService(intent)
+        }
+        true
+      } catch (e: Exception) {
+        // If service isn't running, just clear the persisted active child directly.
+        ChildSessionStore.setActiveChildId(context, null)
+        false
+      }
+    }
+
+    // Per-child usage stats — same shape as getUsageStats but filtered by childId.
+    // Source: ChildSessionStore (only counts time inside blocked apps while the
+    // child's PIN was active).
+    Function("getUsageStatsForChild") { childId: String, startTime: Double, endTime: Double ->
+      val context = appContext.reactContext ?: return@Function emptyList<Map<String, Any>>()
+      val pm = context.packageManager
+      val totalTimes = ChildSessionStore.getUsageForChild(context, childId, startTime.toLong(), endTime.toLong())
+      val result = mutableListOf<Map<String, Any>>()
+
+      for ((pkg, totalMs) in totalTimes) {
+        if (totalMs < 60_000) continue
+        val appName = try {
+          pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
+        } catch (e: PackageManager.NameNotFoundException) {
+          pkg.substringAfterLast(".")
+        }
+        result.add(mapOf(
+          "packageName" to pkg,
+          "appName" to appName,
+          "totalMinutes" to (totalMs / 60_000).toInt(),
+          "lastUsed" to 0L,
+          "launchCount" to 0
+        ))
+      }
+      result.sortByDescending { it["totalMinutes"] as Int }
+      result
     }
 
     // Unregister PIN verified listener
@@ -258,9 +296,6 @@ class ScreenTimeModule : Module() {
     // Get today's total screen time across all apps (in minutes)
     Function("getTotalScreenTime") {
       val context = appContext.reactContext ?: return@Function 0
-      val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
-        ?: return@Function 0
-
       val cal = Calendar.getInstance()
       val endTime = cal.timeInMillis
       cal.set(Calendar.HOUR_OF_DAY, 0)
@@ -269,23 +304,13 @@ class ScreenTimeModule : Module() {
       cal.set(Calendar.MILLISECOND, 0)
       val startTime = cal.timeInMillis
 
-      val stats = usm.queryUsageStats(
-        UsageStatsManager.INTERVAL_DAILY,
-        startTime,
-        endTime
-      ) ?: return@Function 0
-
-      var totalMs: Long = 0
       val pm = context.packageManager
-      for (stat in stats) {
-        val isLaunchable = try {
-          pm.getLaunchIntentForPackage(stat.packageName) != null
-        } catch (e: Exception) { false }
-        if (isLaunchable) {
-          totalMs += stat.totalTimeInForeground
-        }
+      val totalTimes = calculateAccurateStats(context, startTime, endTime)
+      var totalMs = 0L
+      for ((pkg, ms) in totalTimes) {
+        val isLaunchable = try { pm.getLaunchIntentForPackage(pkg) != null } catch (e: Exception) { false }
+        if (isLaunchable) totalMs += ms
       }
-
       (totalMs / 60_000).toInt()
     }
 
@@ -300,6 +325,46 @@ class ScreenTimeModule : Module() {
       }
       pinBroadcastReceiver = null
     }
+  }
+
+  /**
+   * Calculates accurate foreground time per package using UsageEvents.
+   * More accurate than queryUsageStats(INTERVAL_DAILY) which caches lazily
+   * and doesn't include the current active session in real time.
+   */
+  private fun calculateAccurateStats(context: Context, startTime: Long, endTime: Long): Map<String, Long> {
+    val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
+      ?: return emptyMap()
+
+    data class ActivityKey(val pkg: String, val cls: String)
+    val resumeTimes = mutableMapOf<ActivityKey, Long>()
+    val totalTimes = mutableMapOf<String, Long>()
+
+    val events = usm.queryEvents(startTime, endTime)
+    val event = android.app.usage.UsageEvents.Event()
+
+    while (events.hasNextEvent()) {
+      events.getNextEvent(event)
+      val pkg = event.packageName
+      val cls = event.className ?: pkg
+      val key = ActivityKey(pkg, cls)
+      when (event.eventType) {
+        android.app.usage.UsageEvents.Event.ACTIVITY_RESUMED ->
+          resumeTimes[key] = event.timeStamp
+        android.app.usage.UsageEvents.Event.ACTIVITY_PAUSED,
+        android.app.usage.UsageEvents.Event.ACTIVITY_STOPPED -> {
+          val start = resumeTimes.remove(key)
+          if (start != null)
+            totalTimes[pkg] = (totalTimes[pkg] ?: 0L) + (event.timeStamp - start)
+        }
+      }
+    }
+
+    // Apps still in foreground at endTime
+    for ((key, start) in resumeTimes)
+      totalTimes[key.pkg] = (totalTimes[key.pkg] ?: 0L) + (endTime - start)
+
+    return totalTimes
   }
 
   private fun getLaunchCount(context: Context, packageName: String, startTime: Long, endTime: Long): Int {
@@ -325,8 +390,4 @@ class ScreenTimeModule : Module() {
     }
   }
 
-  private data class AggregatedStats(
-    var totalTimeMs: Long,
-    var lastUsed: Long
-  )
 }

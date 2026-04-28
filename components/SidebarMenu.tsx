@@ -7,9 +7,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
+import { useChildrenStore } from '@/store/childrenStore';
 import { Colors } from '@/constants/colors';
 import { Spacing, Radius, FontSize, FontWeight } from '@/constants/theme';
 import { BuvijonLogo } from '@/components/ui/BuvijonLogo';
+import { AvatarCircle } from '@/components/ui/AvatarCircle';
 import { useTranslation } from '@/i18n';
 
 const { width: SW } = Dimensions.get('window');
@@ -26,6 +28,10 @@ export function SidebarMenu({ visible, onClose }: Props) {
   const insets = useSafeAreaInsets();
   const parent = useAuthStore(s => s.parent);
   const logout = useAuthStore(s => s.logout);
+  const activeChildId = useChildrenStore(s => s.currentActiveChildId);
+  const getChildById = useChildrenStore(s => s.getChildById);
+  const logoutActiveChild = useChildrenStore(s => s.logoutActiveChild);
+  const activeChild = activeChildId ? getChildById(activeChildId) : undefined;
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const slideAnim = useRef(new Animated.Value(-SIDEBAR_W)).current;
@@ -81,15 +87,32 @@ export function SidebarMenu({ visible, onClose }: Props) {
             <Text style={styles.logoText}>Buvijon</Text>
           </View>
           <View style={styles.profileCard}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{parent?.name?.[0]?.toUpperCase() || '?'}</Text>
-            </View>
+            <AvatarCircle uri={parent?.avatar} name={parent?.name ?? '?'} size={48} />
             <View style={styles.profileInfo}>
               <Text style={styles.profileName}>{parent?.name || ''}</Text>
-              <Text style={styles.profileEmail}>{parent?.email || ''}</Text>
+              {parent?.username
+                ? <Text style={styles.profileUsername}>@{parent.username}</Text>
+                : <Text style={styles.profileEmail}>{parent?.email || ''}</Text>}
             </View>
           </View>
         </View>
+
+        {activeChild && (
+          <View style={styles.activeChildCard}>
+            <View style={styles.activeChildDot} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.activeChildLabel}>Активен</Text>
+              <Text style={styles.activeChildName} numberOfLines={1}>{activeChild.name}</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.activeChildLogoutBtn}
+              onPress={logoutActiveChild}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.activeChildLogoutText}>Выйти</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <View style={styles.divider} />
 
@@ -98,7 +121,7 @@ export function SidebarMenu({ visible, onClose }: Props) {
           <NavItem icon="home-outline" label={t.tabs.garden} onPress={() => navigate('/(tabs)')} />
           <NavItem icon="people-outline" label={t.tabs.children} onPress={() => navigate('/(tabs)/children')} />
           <NavItem icon="bar-chart-outline" label={t.tabs.reports} onPress={() => navigate('/(tabs)/reports')} />
-          <NavItem icon="sparkles-outline" label={t.tabs.ai} onPress={() => navigate('/(tabs)/ai')} />
+          <NavItem icon="search-outline" label={t.tabs.search} onPress={() => navigate('/(tabs)/ai')} />
         </View>
 
         <View style={styles.divider} />
@@ -192,24 +215,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.md,
   },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: Colors.primaryPale,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontSize: FontSize.xl,
-    fontWeight: FontWeight.medium,
-    color: Colors.primary,
-  },
   profileInfo: { flex: 1 },
   profileName: {
     fontSize: FontSize.lg,
     fontWeight: FontWeight.semibold,
     color: Colors.textPrimary,
+  },
+  profileUsername: {
+    fontSize: FontSize.sm,
+    color: Colors.primary,
+    marginTop: 1,
   },
   profileEmail: {
     fontSize: FontSize.sm,
@@ -219,6 +234,46 @@ const styles = StyleSheet.create({
     height: 0.5,
     backgroundColor: Colors.borderLight,
     marginVertical: Spacing.md,
+  },
+  activeChildCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.primaryPale,
+    borderRadius: Radius.md,
+    marginTop: Spacing.md,
+  },
+  activeChildDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.primary,
+  },
+  activeChildLabel: {
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  activeChildName: {
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.semibold,
+    color: Colors.textPrimary,
+  },
+  activeChildLogoutBtn: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.surface,
+    borderWidth: 0.5,
+    borderColor: Colors.border,
+  },
+  activeChildLogoutText: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.semibold,
+    color: Colors.primary,
   },
   navSection: { gap: 2 },
   navItem: {

@@ -37,6 +37,37 @@ export function getUsageStats(startTime: number, endTime: number): AppUsageInfo[
 }
 
 /**
+ * Get per-app usage stats attributed to a specific child.
+ * Only counts foreground time inside *blocked* apps while this child's PIN
+ * was the active session (set via the overlay).
+ *
+ * Returns the same AppUsageInfo shape as getUsageStats; launchCount is always 0.
+ */
+export function getUsageStatsForChild(
+  childId: string,
+  startTime: number,
+  endTime: number
+): AppUsageInfo[] {
+  return NativeModule.getUsageStatsForChild(childId, startTime, endTime);
+}
+
+/**
+ * The child whose PIN is currently the active session, or null if no session.
+ * Persisted in SharedPreferences — survives app and service restarts.
+ */
+export function getActiveChildId(): string | null {
+  const v = NativeModule.getActiveChildId();
+  return v && typeof v === 'string' && v.length > 0 ? v : null;
+}
+
+/**
+ * Clear the active child. Next blocked-app launch will show the PIN overlay again.
+ */
+export function logoutChild(): boolean {
+  return NativeModule.logoutChild();
+}
+
+/**
  * Get total screen time today across all launchable apps (in minutes).
  */
 export function getTotalScreenTime(): number {
@@ -108,6 +139,13 @@ export function unlistenPinVerified(): void {
 export interface PinVerifiedEvent {
   childId: string;
   childName: string;
+}
+
+export interface ActiveChildChangedEvent {
+  /** Previous active child id, or empty string if none was active. */
+  previousChildId: string;
+  /** New active child id, or empty string on logout. */
+  newChildId: string;
 }
 
 /**

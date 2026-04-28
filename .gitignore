@@ -7,8 +7,12 @@ expo-env.d.ts
 node_modules
 .expo/
 dist/
-android/
-ios/
+/android/
+/ios/
+
+# Native module build artifacts
+modules/**/build/
+modules/**/.cxx/
 
 # IDE
 .idea/

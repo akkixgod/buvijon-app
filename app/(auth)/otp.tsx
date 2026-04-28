@@ -23,7 +23,7 @@ const BOX_HEIGHT = Math.floor(BOX_SIZE * 1.15);
 export default function OTPScreen() {
   const router = useRouter();
   const t = useTranslation();
-  const { email, name, mode } = useLocalSearchParams<{ email: string; name?: string; mode: string }>();
+  const { email, name, username, mode } = useLocalSearchParams<{ email: string; name?: string; username?: string; mode: string }>();
   const verifyOtp = useAuthStore(s => s.verifyOtp);
   const sendOtp   = useAuthStore(s => s.sendOtp);
 
@@ -95,10 +95,15 @@ export default function OTPScreen() {
     const token = code ?? digits.join('');
     if (token.length < OTP_LENGTH) { setError(t.otp.errIncomplete); return; }
     setLoading(true);
-    const result = await verifyOtp(email, token, name);
+    const result = await verifyOtp(email, token, name, username);
     setLoading(false);
     if (result.ok) {
-      router.replace('/(tabs)');
+      // New registrations → onboarding (permission request), existing logins → directly to tabs
+      if (mode === 'register') {
+        router.replace('/onboarding');
+      } else {
+        router.replace('/(tabs)');
+      }
     } else {
       const msg = result.error === 'PROFILE_NOT_FOUND'
         ? t.otp.errNotFound

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Platform, AppState } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { AppUsageInfo } from 'screen-time';
 
 // Lazy-load native module — will be null on iOS / web / Expo Go
@@ -19,10 +20,15 @@ export interface ScreenTimeData {
 }
 
 /**
- * Hook to get today's real screen time data from Android UsageStatsManager.
+ * Hook to get screen time data from Android UsageStatsManager.
+ *
+ * - Without `childId`: returns device-wide usage (today, since install).
+ * - With `childId`: returns time attributed to that specific child via PIN
+ *   sessions in the AppBlockerService overlay. Only blocked apps contribute.
+ *
  * Falls back gracefully on unsupported platforms.
  */
-export function useScreenTime(): ScreenTimeData & {
+export function useScreenTime(childId?: string): ScreenTimeData & {
   refresh: () => void;
   openPermissionSettings: () => void;
 } {
@@ -35,6 +41,15 @@ export function useScreenTime(): ScreenTimeData & {
     isSupported,
     loading: true,
   });
+
+  // Time of first registration — used as floor for screen time queries
+  const [installTime, setInstallTime] = useState(0);
+
+  useEffect(() => {
+    AsyncStorage.getItem('@buvijon_install_time').then(v => {
+      if (v) setInstallTime(parseInt(v, 10));
+    });
+  }, []);
 
   const fetchData = useCallback(() => {
     if (!isSupported || !ScreenTime) {
@@ -53,13 +68,17 @@ export function useScreenTime(): ScreenTimeData & {
       return;
     }
 
-    // Get today's time range
+    // Count time only from when app was first installed/registered (today floor)
     const now = new Date();
-    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const effectiveStart = installTime > midnight ? installTime : midnight;
     const endTime = now.getTime();
 
-    const apps = ScreenTime.getUsageStats(startOfDay, endTime);
-    const totalMinutes = ScreenTime.getTotalScreenTime();
+    const apps = childId
+      ? ScreenTime.getUsageStatsForChild(childId, effectiveStart, endTime)
+      : ScreenTime.getUsageStats(effectiveStart, endTime);
+    // Derive total from apps array — consistent with the same time range
+    const totalMinutes = apps.reduce((sum, a) => sum + a.totalMinutes, 0);
 
     setData({
       apps,
@@ -68,14 +87,15 @@ export function useScreenTime(): ScreenTimeData & {
       isSupported: true,
       loading: false,
     });
-  }, [isSupported]);
+  }, [isSupported, installTime, childId]);
 
-  // Fetch on mount
+  // Fetch on mount + whenever childId / installTime changes
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  // Re-fetch when app returns to foreground (user may have granted permission)
+  // Re-fetch when app returns to foreground (user may have granted permission,
+  // or accumulated more time in the background overlay session)
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active') {

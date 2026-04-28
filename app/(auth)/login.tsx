@@ -94,7 +94,8 @@ export default function LoginScreen() {
                 const result = await signInWithGoogle();
                 setGoogleLoading(false);
                 if (result.ok) {
-                  router.replace('/(tabs)');
+                  if (result.isNewUser) router.replace('/onboarding');
+                  else router.replace('/(tabs)');
                 } else {
                   setError(result.error ?? 'Google error');
                 }

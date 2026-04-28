@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
 import { Parent } from '@/types';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
@@ -14,8 +15,8 @@ interface AuthState {
 
   loadSession: () => Promise<void>;
   sendOtp: (email: string, shouldCreateUser?: boolean) => Promise<{ ok: boolean; error?: string }>;
-  verifyOtp: (email: string, token: string, name?: string) => Promise<{ ok: boolean; error?: string }>;
-  signInWithGoogle: () => Promise<{ ok: boolean; error?: string }>;
+  verifyOtp: (email: string, token: string, name?: string, username?: string) => Promise<{ ok: boolean; error?: string }>;
+  signInWithGoogle: () => Promise<{ ok: boolean; isNewUser?: boolean; error?: string }>;
   logout: () => Promise<void>;
   updateProfile: (data: Partial<Parent>) => Promise<void>;
 }
@@ -27,9 +28,29 @@ function rowToParent(profile: any): Parent {
     phone: profile.phone ?? '',
     email: profile.email,
     avatar: profile.avatar,
+    username: profile.username,
     isPremium: profile.is_premium ?? false,
     createdAt: profile.created_at,
   };
+}
+
+async function generateUniqueUsername(baseName: string): Promise<string> {
+  let base = baseName
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, '')
+    .slice(0, 16);
+  if (base.length < 3) base = 'user';
+
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const candidate = attempt === 0 ? base : `${base}${attempt}`;
+    const { data } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('username', candidate)
+      .maybeSingle();
+    if (!data) return candidate;
+  }
+  return `${base}${Math.random().toString(16).slice(2, 6)}`;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -69,7 +90,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  verifyOtp: async (email, token, name) => {
+  verifyOtp: async (email, token, name, username) => {
     try {
       const { data, error } = await supabase.auth.verifyOtp({
         email: email.trim().toLowerCase(),
@@ -89,21 +110,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ parent: rowToParent(profile), isAuthenticated: true });
       } else if (name) {
         // Новый пользователь — создаём профиль
+        const resolvedUsername = username || await generateUniqueUsername(name);
         const { error: profileError } = await supabase
           .from('profiles')
           .insert({
             id: data.user.id,
             name,
             email: email.trim().toLowerCase(),
+            username: resolvedUsername,
             is_premium: false,
           });
         if (profileError) return { ok: false, error: profileError.message };
+        // Save first-install timestamp so screen time counts from registration, not midnight
+        const existing = await AsyncStorage.getItem('@buvijon_install_time');
+        if (!existing) await AsyncStorage.setItem('@buvijon_install_time', Date.now().toString());
         set({
           parent: {
             id: data.user.id,
             name,
             phone: '',
             email: email.trim().toLowerCase(),
+            username: resolvedUsername,
             isPremium: false,
             createdAt: new Date().toISOString(),
           },
@@ -148,29 +175,36 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       if (profile) {
         set({ parent: rowToParent(profile), isAuthenticated: true });
+        return { ok: true, isNewUser: false };
       } else {
         const name = data.user.user_metadata?.full_name ?? data.user.email?.split('@')[0] ?? '';
         const email = data.user.email ?? '';
+        const username = await generateUniqueUsername(name);
         const { error: insertErr } = await supabase.from('profiles').insert({
           id: data.user.id,
           name,
           email,
+          username,
           is_premium: false,
         });
         if (insertErr) return { ok: false, error: insertErr.message };
+        // Save first-install timestamp
+        const existing = await AsyncStorage.getItem('@buvijon_install_time');
+        if (!existing) await AsyncStorage.setItem('@buvijon_install_time', Date.now().toString());
         set({
           parent: {
             id: data.user.id,
             name,
             phone: '',
             email,
+            username,
             isPremium: false,
             createdAt: new Date().toISOString(),
           },
           isAuthenticated: true,
         });
+        return { ok: true, isNewUser: true };
       }
-      return { ok: true };
     } catch (e: any) {
       const msg = e?.code === 'SIGN_IN_CANCELLED'
         ? 'Вход отменён'
@@ -190,7 +224,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const updated = { ...current, ...data };
     await supabase
       .from('profiles')
-      .update({ name: updated.name, phone: updated.phone, avatar: updated.avatar })
+      .update({ name: updated.name, phone: updated.phone, avatar: updated.avatar, username: updated.username })
       .eq('id', current.id);
     set({ parent: updated });
   },

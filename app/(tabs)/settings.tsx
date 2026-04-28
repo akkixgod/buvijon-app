@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Modal, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import { useAuthStore } from '@/store/authStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { Colors } from '@/constants/colors';
 import { Spacing, Radius, FontSize, FontWeight } from '@/constants/theme';
 import { useTranslation, type Lang } from '@/i18n';
+import { AvatarCircle } from '@/components/ui/AvatarCircle';
+import { uploadAvatarImage } from '@/lib/uploadImage';
 
 const LANGUAGES: { value: Lang; label: string; sublabel: string }[] = [
   { value: 'uz-cyrillic', label: 'Ўзбекча',   sublabel: 'Кирилл' },
@@ -23,6 +26,25 @@ export default function SettingsScreen() {
   const { notificationsEnabled, soundEnabled, language, updateSettings } = useSettingsStore();
 
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [avatarLoading, setAvatarLoading] = useState(false);
+  const updateProfile = useAuthStore(s => s.updateProfile);
+
+  const handleAvatarPress = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.85,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    if (!parent?.id) return;
+    setAvatarLoading(true);
+    const url = await uploadAvatarImage(result.assets[0].uri, parent.id);
+    if (url) await updateProfile({ avatar: url });
+    setAvatarLoading(false);
+  };
 
   const handleLogout = () => {
     setShowLogoutModal(true);
@@ -48,12 +70,19 @@ export default function SettingsScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         {/* Профиль */}
         <View style={styles.profileCard}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{parent?.name?.[0]?.toUpperCase() || '?'}</Text>
-          </View>
+          <TouchableOpacity onPress={handleAvatarPress} style={styles.avatarWrap} activeOpacity={0.8}>
+            <AvatarCircle uri={parent?.avatar} name={parent?.name ?? '?'} size={52} />
+            <View style={styles.cameraBadge}>
+              {avatarLoading
+                ? <ActivityIndicator size="small" color="#fff" />
+                : <Ionicons name="camera" size={12} color="#fff" />}
+            </View>
+          </TouchableOpacity>
           <View style={styles.profileInfo}>
             <Text style={styles.profileName}>{parent?.name}</Text>
-            <Text style={styles.profileEmail}>{parent?.email}</Text>
+            {parent?.username
+              ? <Text style={styles.profileUsername}>@{parent.username}</Text>
+              : <Text style={styles.profileEmail}>{parent?.email}</Text>}
           </View>
           <TouchableOpacity style={styles.editBtn}>
             <Ionicons name="pencil" size={16} color={Colors.primary} />
@@ -216,13 +245,17 @@ const styles = StyleSheet.create({
     borderLeftWidth: 3, borderLeftColor: Colors.primary,
     marginBottom: Spacing.md,
   },
-  avatar: {
-    width: 52, height: 52, borderRadius: 26,
-    backgroundColor: Colors.primaryPale, alignItems: 'center', justifyContent: 'center',
+  avatarWrap: { position: 'relative' },
+  cameraBadge: {
+    position: 'absolute', bottom: 0, right: 0,
+    width: 20, height: 20, borderRadius: 10,
+    backgroundColor: Colors.primary,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: Colors.surface,
   },
-  avatarText: { fontSize: FontSize.xl, fontWeight: FontWeight.medium, color: Colors.primary },
   profileInfo: { flex: 1 },
   profileName: { fontSize: FontSize.lg, fontWeight: FontWeight.semibold, color: Colors.textPrimary },
+  profileUsername: { fontSize: FontSize.sm, color: Colors.primary, marginTop: 1 },
   profileEmail: { fontSize: FontSize.sm, color: Colors.textMuted },
   editBtn: {
     width: 32, height: 32, borderRadius: 16,
