@@ -1,47 +1,44 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
-  SafeAreaView, ActivityIndicator,
-  RefreshControl, Modal, ScrollView, Dimensions
+  ActivityIndicator,
+  RefreshControl, Modal, ScrollView
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '@/lib/supabase';
-import { useMessagesStore, FamilyRanking, StandingCategory } from '@/store/messagesStore';
+import { useMessagesStore, FamilyRanking } from '@/store/messagesStore';
 import { useAuthStore } from '@/store/authStore';
 import { useChildrenStore } from '@/store/childrenStore';
 import { Colors } from '@/constants/colors';
 import { Spacing, Radius, FontSize, FontWeight } from '@/constants/theme';
 import { useTranslation } from '@/i18n';
-// import { FamilyRankingCard } from '@/components/messages/FamilyRankingCard';
-// import { ChatListItem } from '@/components/messages/ChatListItem';
-// import { CreateChatModal } from '@/components/messages/CreateChatModal';
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+import FamilyRankingCard from '@/components/messages/FamilyRankingCard';
+import ChatListItem from '@/components/messages/ChatListItem';
+import RequestNotification from '@/components/messages/RequestNotification';
+import CreateChatModal from '@/components/messages/CreateChatModal';
 
 export default function MessagesScreen() {
-  const { t } = useTranslation();
+  const t = useTranslation();
   const parent = useAuthStore(s => s.parent);
   const children = useChildrenStore(s => s.children);
   // Zustand Store
 
+  const store = useMessagesStore();
   const {
-    // parent: useAuthStore(s => s.parent),
-    // familyRanking: useMessagesStore(s => s.familyRanking),
-    // chatRooms: useMessagesStore(s => s.chatRooms),
-    // activeChatRoomId: useMessagesStore(s => s.activeChatRoomId),
-    // isLoadingRanking: useMessagesStore(s => s.isLoadingRanking),
-    // isLoadingMessages: useMessagesStore(s => s.isLoadingMessages),
-    // rankingError: useMessagesStore(s => s.rankingError),
-    // chatError: useMessagesStore(s => s.chatError),
-    // loadFamilyRanking: useMessagesStore(s => s.loadFamilyRanking),
-    // loadChatRooms: useMessagesStore(s => s.loadChatRooms),
-    // setActiveChatRoom: useMessagesStore(s => s.setActiveChatRoom),
-    // setPerspectiveChild: useMessagesStore(s => s.setPerspectiveChild),
-    // joinFamilyTree: useMessagesStore(s => s.joinFamilyTree),
-    // createDirectChat: useMessagesStore(s => s.createDirectChat)
-  } = useMessagesStore();
+    familyRanking,
+    chatRooms,
+    activeChatRoomId,
+    isLoadingRanking,
+    isLoadingMessages,
+    rankingError,
+    chatError,
+    loadFamilyRanking,
+    loadChatRooms,
+    setActiveChatRoom,
+    setPerspectiveChild,
+    createDirectChat
+  } = store;
 
   // Local State
   const [searchQuery, setSearchQuery] = useState('');
@@ -51,11 +48,10 @@ export default function MessagesScreen() {
   const [selectedPerspectiveChild, setSelectedPerspectiveChild] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
-  const [inviteLink, setInviteLink] = useState('');
+  const [familyTreeId, setFamilyTreeId] = useState<string | null>(null);
 
   // Refs
   const rankingListRef = useRef<FlatList>(null);
-  const chatListRef = useRef<FlatList>(null);
 
   // Constants
   const RANKING_CARD_WIDTH = 140;
@@ -70,6 +66,16 @@ export default function MessagesScreen() {
       loadInitialData();
     }
   }, [parent?.id]);
+
+  // Setup real-time subscriptions when familyTreeId is available
+  useEffect(() => {
+    if (familyTreeId) {
+      // Setup subscriptions
+      store.setupRankingSubscription(familyTreeId);
+      store.setupChatSubscription(familyTreeId);
+      store.setupRequestSubscription(familyTreeId);
+    }
+  }, [familyTreeId, store]);
 
   // Cleanup subscriptions on unmount
   useEffect(() => {
@@ -86,11 +92,12 @@ export default function MessagesScreen() {
     try {
       // Assuming you have a way to get the family tree ID
       // This would typically come from parent's profile or a separate store
-      const familyTreeId = await getFamilyTreeId(parent?.id || '');
-      if (familyTreeId) {
+      const treeId = await getFamilyTreeId(parent?.id || '');
+      if (treeId) {
+        setFamilyTreeId(treeId);
         await Promise.all([
-          loadFamilyRanking(familyTreeId, selectedPerspectiveChild || undefined),
-          loadChatRooms(familyTreeId)
+          loadFamilyRanking(treeId, selectedPerspectiveChild || undefined),
+          loadChatRooms(treeId)
         ]);
       }
     } catch (error) {
@@ -194,38 +201,26 @@ export default function MessagesScreen() {
     }
   };
 
-  const handleJoinFamily = async (inviteCode: string) => {
-    try {
-      await joinFamilyTree(inviteCode);
-      setShowInviteModal(false);
-      await loadInitialData();
-      // Show success message
-    } catch (error) {
-      console.error('Error joining family:', error);
-      // Show error message
-    }
-  };
-
   // ============================================================================
   // RENDER FUNCTIONS
   // ============================================================================
 
-  // const renderRankingCard = useCallback(({ item, index }: { item: FamilyRanking; index: number }) => (
-  //   <FamilyRankingCard
-  //     ranking={item}
-  //     index={index}
-  //     isPerspectiveChild={selectedPerspectiveChild === item.childId}
-  //     onPress={() => handlePerspectiveChange(item.childId)}
-  //   />
-  // ), [selectedPerspectiveChild, handlePerspectiveChange]);
+  const renderRankingCard = useCallback(({ item, index }: { item: FamilyRanking; index: number }) => (
+    <FamilyRankingCard
+      ranking={item}
+      index={index}
+      isPerspectiveChild={selectedPerspectiveChild === item.childId}
+      onPress={() => handlePerspectiveChange(item.childId)}
+    />
+  ), [selectedPerspectiveChild, handlePerspectiveChange]);
 
-  // const renderChatRoomItem = useCallback(({ item }: { item: any }) => (
-  //   <ChatListItem
-  //     chatRoom={item}
-  //     isActive={item.id === activeChatRoomId}
-  //     onPress={() => handleChatRoomPress(item.id)}
-  //   />
-  // ), [activeChatRoomId, handleChatRoomPress]);
+  const renderChatRoomItem = useCallback(({ item }: { item: any }) => (
+    <ChatListItem
+      chatRoom={item}
+      isActive={item.id === activeChatRoomId}
+      onPress={() => handleChatRoomPress(item.id)}
+    />
+  ), [activeChatRoomId, handleChatRoomPress]);
 
   const renderChatSectionHeader = useCallback((title: string) => (
     <View style={styles.sectionHeader}>
@@ -266,11 +261,11 @@ export default function MessagesScreen() {
   // ============================================================================
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <View style={styles.container}>
       {/* Header */}
       <LinearGradient
         colors={[Colors.primaryPale, Colors.background]}
-        style={[styles.header, { paddingTop: ((insets?.top || 0) + Spacing.sm) }]}
+        style={styles.header}
       >
         <View style={styles.headerContent}>
           <View style={styles.headerLeft}>
@@ -284,6 +279,9 @@ export default function MessagesScreen() {
           </View>
 
           <View style={styles.headerRight}>
+            {familyTreeId && (
+              <RequestNotification familyTreeId={familyTreeId} />
+            )}
             <TouchableOpacity
               style={styles.headerButton}
               onPress={() => setShowSearch(!showSearch)}
@@ -441,14 +439,7 @@ export default function MessagesScreen() {
             getChatRoomSections().map((section, sectionIndex) => (
               <View key={section.title + sectionIndex} style={styles.chatSectionBlock}>
                 {renderSectionHeader({ section })}
-                {section.data.map((room: any) => (
-                  <ChatListItem
-                    key={room.id}
-                    chatRoom={room}
-                    isActive={room.id === activeChatRoomId}
-                    onPress={() => handleChatRoomPress(room.id)}
-                  />
-                ))}
+                {section.data.map((room: any) => renderChatRoomItem({ item: room }))}
               </View>
             ))
           ) : (
@@ -511,7 +502,7 @@ export default function MessagesScreen() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -740,7 +731,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderTopLeftRadius: Radius.xl,
     borderTopRightRadius: Radius.xl,
-    paddingTop: (insets?.bottom || 0) > 0 ? insets.bottom : Spacing.lg,
+    paddingTop: Spacing.lg,
   },
   modalHeader: {
     flexDirection: 'row',

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { SearchService } from '@/services/searchService';
 
 // ============================================================================
 // TYPES
@@ -8,6 +9,8 @@ import { supabase } from '@/lib/supabase';
 
 export type StandingCategory = 'excellent' | 'good' | 'neutral' | 'warning' | 'critical';
 export type RoomType = 'system' | 'group' | 'direct';
+export type RequestStatus = 'pending' | 'accepted' | 'declined';
+export type SearchTab = 'users' | 'families';
 
 export interface FamilyRanking {
   childId: string;
@@ -48,6 +51,40 @@ export interface ChatMessage {
   readBy: string[];
 }
 
+export interface FamilyRequest {
+  id: string;
+  requesterId: string;
+  requesterName: string;
+  requesterUsername: string;
+  familyTreeId: string;
+  familyTreeName: string;
+  familyTreeHandle: string;
+  requestType: string;
+  status: RequestStatus;
+  message: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SearchUserResult {
+  id: string;
+  name: string;
+  username: string;
+  avatar: string;
+  isPremium: boolean;
+  mutualFamilies?: string[];
+}
+
+export interface SearchFamilyResult {
+  id: string;
+  name: string;
+  handle: string;
+  memberCount: number;
+  creatorName: string;
+  inviteLink: string;
+  hasPendingRequest?: boolean;
+}
+
 export interface MessagesState {
   // Family Ranking Data
   familyRanking: FamilyRanking[];
@@ -64,6 +101,22 @@ export interface MessagesState {
   // Real-time subscriptions
   rankingSubscription: RealtimeChannel | null;
   chatSubscription: RealtimeChannel | null;
+  requestSubscription: RealtimeChannel | null;
+
+  // Dual Search State
+  searchTab: SearchTab;
+  searchQuery: string;
+  searchUsers: SearchUserResult[];
+  searchFamilies: SearchFamilyResult[];
+  isSearching: boolean;
+  searchError: string | null;
+
+  // Family Request State
+  pendingRequests: FamilyRequest[];
+  userRequestStatus: Record<string, RequestStatus>;
+  isLoadingRequests: boolean;
+  requestError: string | null;
+  unreadRequestCount: number;
 
   // Actions
   loadFamilyRanking: (familyTreeId: string, perspectiveChildId?: string) => Promise<void>;
@@ -76,9 +129,32 @@ export interface MessagesState {
   joinFamilyTree: (inviteCode: string) => Promise<void>;
   createDirectChat: (parentId: string) => Promise<string>;
 
+  // Dual Search Actions
+  setSearchTab: (tab: SearchTab) => void;
+  searchUsersByUsername: (query: string) => Promise<void>;
+  searchFamiliesByHandle: (query: string) => Promise<void>;
+  clearSearch: () => void;
+
+  // Family Request Actions
+  sendFamilyJoinRequest: (familyTreeId: string, message?: string) => Promise<void>;
+  acceptFamilyRequest: (requestId: string) => Promise<void>;
+  declineFamilyRequest: (requestId: string) => Promise<void>;
+  handleRequest: (requestId: string, action: 'accept' | 'decline') => Promise<void>;
+  loadPendingRequests: (familyTreeId: string) => Promise<void>;
+  loadUserRequestStatus: (familyTreeId: string) => Promise<void>;
+
+  // Buvijon Bot Actions
+  sendBuvijonNotification: (familyTreeId: string, message: string, metadata?: Record<string, any>) => Promise<void>;
+
+  // Real-time Setup Functions
+  setupRequestSubscription: (familyTreeId: string) => void;
+  setupRankingSubscription: (familyTreeId: string) => void;
+  setupChatSubscription: (familyTreeId: string) => void;
+
   // Cleanup
   unsubscribeRankingUpdates: () => void;
   unsubscribeChatUpdates: () => void;
+  unsubscribeRequestUpdates: () => void;
   cleanup: () => void;
 }
 
@@ -100,6 +176,22 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
 
   rankingSubscription: null,
   chatSubscription: null,
+  requestSubscription: null,
+
+  // Dual Search State
+  searchTab: 'users',
+  searchQuery: '',
+  searchUsers: [],
+  searchFamilies: [],
+  isSearching: false,
+  searchError: null,
+
+  // Family Request State
+  pendingRequests: [],
+  userRequestStatus: {},
+  isLoadingRequests: false,
+  requestError: null,
+  unreadRequestCount: 0,
 
   // Load Family Ranking
   loadFamilyRanking: async (familyTreeId: string, perspectiveChildId?: string) => {
@@ -163,14 +255,9 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
 
   // Set Perspective Child
   setPerspectiveChild: (childId: string | null) => {
-    const { familyTreeId } = get(); // Would need to store this in state
     set({ currentPerspectiveChildId: childId });
-
-    // Reload ranking with new perspective
-    if (childId) {
-      // This would need familyTreeId to be available
-      // get().loadFamilyRanking(familyTreeId, childId);
-    }
+    // Note: Actual ranking reload would require familyTreeId to be available
+    // This should be called from a component that has access to the current familyTreeId
   },
 
   // Load Chat Rooms
@@ -400,17 +487,22 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
       if (!user) throw new Error('User not authenticated');
 
       // Find a family tree where both parents are members
+      // First get user's family trees
+      const { data: userFamilies } = await supabase
+        .from('family_members')
+        .select('family_tree_id')
+        .eq('parent_id', user.id);
+
+      const userFamilyIds = (userFamilies || []).map(f => f.family_tree_id);
+
+      // Then check if other parent is in any of those families
       const { data: sharedFamily } = await supabase
         .from('family_members')
         .select('family_tree_id')
-        .eq('parent_id', user.id)
-        .in('family_tree_id', supabase
-          .from('family_members')
-          .select('family_tree_id')
-          .eq('parent_id', otherParentId)
-        )
+        .eq('parent_id', otherParentId)
+        .in('family_tree_id', userFamilyIds.length > 0 ? userFamilyIds : ['none'])
         .limit(1)
-        .single();
+        .maybeSingle();
 
       if (!sharedFamily) {
         throw new Error('No shared family tree found');
@@ -456,6 +548,393 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
       console.error('Error creating direct chat:', error);
       throw error;
     }
+  },
+
+  // ============================================================================
+  // DUAL SEARCH ACTIONS
+  // ============================================================================
+
+  // Set Search Tab
+  setSearchTab: (tab: SearchTab) => {
+    set({ searchTab: tab, searchQuery: '', searchUsers: [], searchFamilies: [] });
+  },
+
+  // Search Users by Username
+  searchUsersByUsername: async (query: string) => {
+    set({ isSearching: true, searchError: null, searchQuery: query });
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
+      // Use SearchService for search with caching and optimization
+      const searchUsers = await SearchService.searchUsersByUsername(
+        query,
+        user.id // Exclude current user
+      );
+
+      set({ searchUsers, isSearching: false });
+
+    } catch (error: any) {
+      console.error('Error searching users:', error);
+      set({
+        searchError: error.message,
+        searchUsers: [],
+        isSearching: false
+      });
+    }
+  },
+
+  // Search Families by Handle
+  searchFamiliesByHandle: async (query: string) => {
+    set({ isSearching: true, searchError: null, searchQuery: query });
+
+    try {
+      // Use SearchService for search with caching and optimization
+      const searchFamilies = await SearchService.searchFamiliesByHandle(query);
+
+      set({ searchFamilies, isSearching: false });
+
+    } catch (error: any) {
+      console.error('Error searching families:', error);
+      set({
+        searchError: error.message,
+        searchFamilies: [],
+        isSearching: false
+      });
+    }
+  },
+
+  // Clear Search
+  clearSearch: () => {
+    // Clear search cache
+    SearchService.clearSearchCache();
+
+    set({
+      searchQuery: '',
+      searchUsers: [],
+      searchFamilies: [],
+      searchError: null
+    });
+  },
+
+  // ============================================================================
+  // FAMILY REQUEST ACTIONS
+  // ============================================================================
+
+  // Send Family Join Request
+  sendFamilyJoinRequest: async (familyTreeId: string, message?: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
+      // Call PostgreSQL function to create join request
+      const { data: requestId, error } = await supabase
+        .rpc('create_family_join_request', {
+          p_requester_id: user.id,
+          p_family_tree_id: familyTreeId,
+          p_message: message
+        });
+
+      if (error) throw error;
+
+      // Update user request status
+      set(state => ({
+        userRequestStatus: {
+          ...state.userRequestStatus,
+          [familyTreeId]: 'pending'
+        }
+      }));
+
+      // Get user profile data for notification
+      const { data: userProfile } = await supabase
+        .from('profiles')
+        .select('name, username')
+        .eq('id', user.id)
+        .single();
+
+      const userName = userProfile?.name || 'Someone';
+      const userUsername = userProfile?.username || 'unknown';
+
+      // Send Buvijon notification to family tree
+      await get().sendBuvijonNotification(
+        familyTreeId,
+        `${userName} (@${userUsername}) has requested to join your family tree.`
+      );
+
+      // Update search results to show pending status
+      set(state => ({
+        searchFamilies: state.searchFamilies.map(family =>
+          family.id === familyTreeId
+            ? { ...family, hasPendingRequest: true }
+            : family
+        )
+      }));
+
+      console.log('Family join request sent:', requestId);
+      return requestId;
+
+    } catch (error: any) {
+      console.error('Error sending family join request:', error);
+      throw error;
+    }
+  },
+
+  // Handle Request (Unified accept/decline)
+  handleRequest: async (requestId: string, action: 'accept' | 'decline') => {
+    try {
+      if (action === 'accept') {
+        await get().acceptFamilyRequest(requestId);
+      } else {
+        await get().declineFamilyRequest(requestId);
+      }
+    } catch (error: any) {
+      console.error(`Error ${action}ing family request:`, error);
+      throw error;
+    }
+  },
+
+  // Accept Family Request
+  acceptFamilyRequest: async (requestId: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
+      // Call PostgreSQL function to accept request
+      const { data: success, error } = await supabase
+        .rpc('accept_family_join_request', {
+          p_request_id: requestId,
+          p_admin_id: user.id
+        });
+
+      if (error) throw error;
+      if (!success) throw new Error('Failed to accept request');
+
+      // Remove from pending requests
+      set(state => ({
+        pendingRequests: state.pendingRequests.filter(req => req.id !== requestId),
+        unreadRequestCount: Math.max(0, state.unreadRequestCount - 1)
+      }));
+
+      console.log('Family request accepted:', requestId);
+
+    } catch (error: any) {
+      console.error('Error accepting family request:', error);
+      throw error;
+    }
+  },
+
+  // Decline Family Request
+  declineFamilyRequest: async (requestId: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
+      // Call PostgreSQL function to decline request
+      const { data: success, error } = await supabase
+        .rpc('decline_family_join_request', {
+          p_request_id: requestId,
+          p_admin_id: user.id
+        });
+
+      if (error) throw error;
+      if (!success) throw new Error('Failed to decline request');
+
+      // Remove from pending requests
+      set(state => ({
+        pendingRequests: state.pendingRequests.filter(req => req.id !== requestId),
+        unreadRequestCount: Math.max(0, state.unreadRequestCount - 1)
+      }));
+
+      console.log('Family request declined:', requestId);
+
+    } catch (error: any) {
+      console.error('Error declining family request:', error);
+      throw error;
+    }
+  },
+
+  // Load Pending Requests
+  loadPendingRequests: async (familyTreeId: string) => {
+    set({ isLoadingRequests: true, requestError: null });
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
+      // Call PostgreSQL function to get pending requests
+      const { data: requests, error } = await supabase
+        .rpc('get_pending_family_requests', {
+          p_family_tree_id: familyTreeId
+        });
+
+      if (error) throw error;
+
+      const pendingRequests: FamilyRequest[] = (requests || []).map((req: any) => ({
+        id: req.request_id,
+        requesterId: req.requester_id,
+        requesterName: req.requester_name,
+        requesterUsername: req.requester_username,
+        familyTreeId: familyTreeId,
+        familyTreeName: '', // Can be populated if needed
+        familyTreeHandle: '',
+        requestType: req.request_type,
+        status: 'pending',
+        message: req.message,
+        createdAt: req.created_at,
+        updatedAt: req.created_at
+      }));
+
+      // Get family tree details
+      if (pendingRequests.length > 0) {
+        const { data: familyTree } = await supabase
+          .from('family_trees')
+          .select('name, handle')
+          .eq('id', familyTreeId)
+          .single();
+
+        if (familyTree) {
+          pendingRequests.forEach(req => {
+            req.familyTreeName = familyTree.name;
+            req.familyTreeHandle = familyTree.handle;
+          });
+        }
+      }
+
+      set({
+        pendingRequests,
+        unreadRequestCount: pendingRequests.length,
+        isLoadingRequests: false
+      });
+
+      // Setup request subscription if not already active
+      if (!get().requestSubscription) {
+        get().setupRequestSubscription(familyTreeId);
+      }
+
+    } catch (error: any) {
+      console.error('Error loading pending requests:', error);
+      set({
+        requestError: error.message,
+        pendingRequests: [],
+        isLoadingRequests: false
+      });
+    }
+  },
+
+  // Load User Request Status
+  loadUserRequestStatus: async (familyTreeId: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Call PostgreSQL function to get user's request status
+      const { data: status, error } = await supabase
+        .rpc('get_user_request_status', {
+          p_user_id: user.id,
+          p_family_tree_id: familyTreeId
+        });
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 = No rows returned
+        throw error;
+      }
+
+      if (status && status.length > 0) {
+        set(state => ({
+          userRequestStatus: {
+            ...state.userRequestStatus,
+            [familyTreeId]: status[0].status
+          }
+        }));
+      }
+
+    } catch (error: any) {
+      console.error('Error loading user request status:', error);
+      // Don't throw - this is a non-critical operation
+    }
+  },
+
+  // ============================================================================
+  // BUVIJON BOT ACTIONS
+  // ============================================================================
+
+  // Send Buvijon Notification
+  sendBuvijonNotification: async (familyTreeId: string, message: string, metadata?: Record<string, any>) => {
+    try {
+      // Find Buvijon AI system chat for this family tree
+      const { data: systemChat, error: chatError } = await supabase
+        .from('chat_rooms')
+        .select('*')
+        .eq('family_tree_id', familyTreeId)
+        .eq('room_type', 'system')
+        .eq('is_active', true)
+        .single();
+
+      if (chatError || !systemChat) {
+        console.warn('Buvijon AI system chat not found for family tree:', familyTreeId);
+        return;
+      }
+
+      // Create system message in Buvijon chat
+      const { error: messageError } = await supabase
+        .from('chat_messages')
+        .insert({
+          chat_room_id: systemChat.id,
+          sender_id: null, // System message - no sender
+          message_type: 'system',
+          content: message,
+          metadata: metadata ? JSON.stringify(metadata) : '{}'
+        });
+
+      if (messageError) {
+        console.warn('Failed to send Buvijon notification:', messageError);
+        return;
+      }
+
+      console.log('Buvijon notification sent:', message);
+
+    } catch (error: any) {
+      console.error('Error sending Buvijon notification:', error);
+      // Don't throw - notifications are non-critical
+    }
+  },
+
+  // ============================================================================
+  // SETUP REQUEST SUBSCRIPTION
+  // ============================================================================
+
+  // Setup Request Subscription
+  setupRequestSubscription: (familyTreeId: string) => {
+    const channel = supabase
+      .channel(`family_requests:${familyTreeId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'family_requests',
+          filter: `family_tree_id=eq.${familyTreeId}`
+        },
+        async (payload: RealtimePostgresChangesPayload<any>) => {
+          console.log('Family request update received:', payload);
+
+          // Reload pending requests
+          await get().loadPendingRequests(familyTreeId);
+
+          // If user sent a request, update local status
+          if (payload.eventType === 'INSERT' && payload.new.requester_id === (await supabase.auth.getUser()).data.user?.id) {
+            set(state => ({
+              userRequestStatus: {
+                ...state.userRequestStatus,
+                [familyTreeId]: 'pending'
+              }
+            }));
+          }
+        }
+      )
+      .subscribe();
+
+    set({ requestSubscription: channel });
   },
 
   // Setup Ranking Subscription
@@ -574,9 +1053,19 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
     }
   },
 
+  // Unsubscribe from request updates
+  unsubscribeRequestUpdates: () => {
+    const { requestSubscription } = get();
+    if (requestSubscription) {
+      supabase.removeChannel(requestSubscription);
+      set({ requestSubscription: null });
+    }
+  },
+
   // Cleanup all subscriptions
   cleanup: () => {
     get().unsubscribeRankingUpdates();
     get().unsubscribeChatUpdates();
+    get().unsubscribeRequestUpdates();
   }
 }));
