@@ -202,6 +202,69 @@ export interface T {
     steps: Array<{ title: string; body: string }>;
   };
 
+  messages: {
+    title: string;
+    familyStanding: string;
+    perspectiveView: string;
+    allKidsView: string;
+    all: string;
+    searchPlaceholder: string;
+    createChat: string;
+    joinFamily: string;
+    enterInviteCode: string;
+    join: string;
+    searchMembers: string;
+    noMembersFound: string;
+    noFamilyMembers: string;
+    noRanking: string;
+    noChats: string;
+    startChat: string;
+    startChatWith: string;
+    dualSearch: string;
+    searchUsers: string;
+    searchFamilies: string;
+    userPlaceholder: string;
+    familyPlaceholder: string;
+    searchUsersEmpty: string;
+    searchFamiliesEmpty: string;
+    searching: string;
+    noResults: string;
+    tryDifferent: string;
+    searchMinChars: string;
+    joinFamily: string;
+    pending: string;
+    accept: string;
+    decline: string;
+    requestSent: string;
+    requestSentDesc: string;
+    requestAccepted: string;
+    requestDeclined: string;
+    requestPending: string;
+    noPendingRequests: string;
+    noPendingRequestsDesc: string;
+    pendingRequests: string;
+    memberCount: string;
+    createdBy: string;
+    mutualFamilies: string;
+    chatCreated: string;
+    directChat: string;
+    message: string;
+    buvijonNotification: string;
+  };
+
+  common: {
+    loading: string;
+    retry: string;
+    tryAgain: string;
+    error: string;
+    success: string;
+    cancel: string;
+    save: string;
+    delete: string;
+    edit: string;
+    confirm: string;
+  };
+
   posts: {
     title: string;
     empty: string;
@@ -316,6 +379,69 @@ export interface T {
     setupBtn: string;
     errPinMismatch: string;
     errPinLength: string;
+  };
+
+  messages: {
+    title: string;
+    familyStanding: string;
+    perspectiveView: string;
+    allKidsView: string;
+    all: string;
+    searchPlaceholder: string;
+    createChat: string;
+    joinFamily: string;
+    enterInviteCode: string;
+    join: string;
+    searchMembers: string;
+    noMembersFound: string;
+    noFamilyMembers: string;
+    noRanking: string;
+    noChats: string;
+    startChat: string;
+    startChatWith: string;
+    dualSearch: string;
+    searchUsers: string;
+    searchFamilies: string;
+    userPlaceholder: string;
+    familyPlaceholder: string;
+    searchUsersEmpty: string;
+    searchFamiliesEmpty: string;
+    searching: string;
+    noResults: string;
+    tryDifferent: string;
+    searchMinChars: string;
+    joinFamily: string;
+    pending: string;
+    accept: string;
+    decline: string;
+    requestSent: string;
+    requestSentDesc: string;
+    requestAccepted: string;
+    requestDeclined: string;
+    requestPending: string;
+    noPendingRequests: string;
+    noPendingRequestsDesc: string;
+    pendingRequests: string;
+    memberCount: string;
+    createdBy: string;
+    mutualFamilies: string;
+    chatCreated: string;
+    directChat: string;
+    message: string;
+    buvijonNotification: string;
+  };
+
+  common: {
+    loading: string;
+    retry: string;
+    tryAgain: string;
+    error: string;
+    success: string;
+    cancel: string;
+    save: string;
+    delete: string;
+    edit: string;
+    confirm: string;
   };
 }
 
@@ -635,6 +761,37 @@ const ru: T = {
     uploadAvatar: 'Сменить фото',
     uploadError: 'Не удалось загрузить фото',
   },
+  messages: {
+    title: 'Сообщения',
+    familyStanding: 'Семейный рейтинг',
+    perspectiveView: 'Вид: ',
+    allKidsView: 'Все дети',
+    all: 'Все',
+    searchPlaceholder: 'Поиск чатов...',
+    createChat: 'Создать чат',
+    joinFamily: 'Присоединиться к семье',
+    enterInviteCode: 'Введите код приглашения',
+    join: 'Присоединиться',
+    searchMembers: 'Поиск участников...',
+    noMembersFound: 'Участники не найдены',
+    noFamilyMembers: 'Нет участников семьи',
+    noRanking: 'Нет данных рейтинга',
+    noChats: 'Чатов пока нет',
+    startChat: 'Начать чат',
+    startChatWith: 'Начать чат с ',
+  },
+  common: {
+    loading: 'Загрузка...',
+    retry: 'Повторить',
+    tryAgain: 'Попробуйте снова',
+    error: 'Ошибка',
+    success: 'Успешно',
+    cancel: 'Отмена',
+    save: 'Сохранить',
+    delete: 'Удалить',
+    edit: 'Редактировать',
+    confirm: 'Подтвердить',
+  },
 };
 
 const uzCyrillic: T = {
@@ -953,6 +1110,37 @@ const uzCyrillic: T = {
     uploadAvatar: 'Расмни ўзгартириш',
     uploadError: 'Расмни юклаб бўлмади',
   },
+  messages: {
+    title: 'Хабарлар',
+    familyStanding: 'Оила рейтинги',
+    perspectiveView: 'Кўриниш: ',
+    allKidsView: 'Барча болалар',
+    all: 'Барчаси',
+    searchPlaceholder: 'Чатларни қидириш...',
+    createChat: 'Чат яратиш',
+    joinFamily: 'Оилага қўшилиш',
+    enterInviteCode: 'Таклиф кодини киритинг',
+    join: 'Қўшилиш',
+    searchMembers: 'Иштирокчиларни қидириш...',
+    noMembersFound: 'Иштирокчилар топилмади',
+    noFamilyMembers: 'Оила аъзолари йўқ',
+    noRanking: 'Рейтинг маълумотлари йўқ',
+    noChats: 'Чатлар йўқ',
+    startChat: 'Чатни бошлаш',
+    startChatWith: ' билан чатни бошлаш',
+  },
+  common: {
+    loading: 'Юкланмоқда...',
+    retry: 'Қайта уриниб кўринг',
+    tryAgain: 'Қайта уриниб кўринг',
+    error: 'Хато',
+    success: 'Мувоффақият',
+    cancel: 'Бекор қилиш',
+    save: 'Сақлаш',
+    delete: 'Ўчириш',
+    edit: 'Таҳрирлаш',
+    confirm: 'Тасдиқлаш',
+  },
 };
 
 const uzLatin: T = {
@@ -1270,6 +1458,37 @@ const uzLatin: T = {
   profile: {
     uploadAvatar: "Rasmni o'zgartirish",
     uploadError: "Rasmni yuklab bo'lmadi",
+  },
+  messages: {
+    title: 'Xabarlar',
+    familyStanding: "Oila reytingi",
+    perspectiveView: "Ko'rinish: ",
+    allKidsView: "Barcha bolalar",
+    all: 'Barchasi',
+    searchPlaceholder: "Chatlarni qidirish...",
+    createChat: 'Chat yaratish',
+    joinFamily: "Oilaga qo'shilish",
+    enterInviteCode: "Taklif kodini kiriting",
+    join: "Qo'shilish",
+    searchMembers: "Ishtirokchilarni qidirish...",
+    noMembersFound: "Ishtirokchilar topilmadi",
+    noFamilyMembers: "Oila a'zolari yo'q",
+    noRanking: "Reyting ma'lumotlari yo'q",
+    noChats: "Chatlar yo'q",
+    startChat: "Chatni boshlash",
+    startChatWith: " bilan chatni boshlash",
+  },
+  common: {
+    loading: 'Yuklanmoqda...',
+    retry: 'Qayta urinib ko\'ring',
+    tryAgain: 'Qayta urinib ko\'ring',
+    error: 'Xato',
+    success: 'Muvoffaqiyat',
+    cancel: 'Bekor qilish',
+    save: 'Saqlash',
+    delete: "O'chirish",
+    edit: 'Tahrirlash',
+    confirm: 'Tasdiqlash',
   },
 };
 
