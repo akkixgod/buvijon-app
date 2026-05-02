@@ -237,7 +237,7 @@ export const usePostsStore = create<PostsState>((set, get) => ({
     if (!user) return;
 
     const { data: profile } = await supabase
-      .from('parents')
+      .from('profiles')
       .select('name')
       .eq('id', user.id)
       .single();
