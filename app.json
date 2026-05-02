@@ -1,0 +1,48 @@
+{
+  "expo": {
+    "name": "Buvijon",
+    "slug": "buvijon",
+    "version": "1.0.1",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "buvijon",
+    "userInterfaceStyle": "system",
+    "runtimeVersion": "1.0.2",
+    "splash": {
+      "image": "./assets/images/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/92655d23-9800-4b4f-8ee8-c406370789d6"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "uz.buvijon.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "uz.buvijon.app",
+      "googleServicesFile": "./google-services.json"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "@react-native-google-signin/google-signin",
+      "expo-secure-store"
+    ],
+    "experiments": {
+      "typedRoutes": false
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "92655d23-9800-4b4f-8ee8-c406370789d6"
+      }
+    },
+    "owner": "akbaralidv"
+  }
+}
