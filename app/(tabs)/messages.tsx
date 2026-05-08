@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { router } from 'expo-router';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
   ActivityIndicator,
@@ -17,6 +18,14 @@ import FamilyRankingCard from '@/components/messages/FamilyRankingCard';
 import ChatListItem from '@/components/messages/ChatListItem';
 import RequestNotification from '@/components/messages/RequestNotification';
 import CreateChatModal from '@/components/messages/CreateChatModal';
+import { AddChildModal } from '@/components/child/AddChildModal';
+import { ParentPinModal } from '@/components/parent-pin/ParentPinModal';
+import { useParentPinStore } from '@/store/parentPinStore';
+import { ProgressBar } from '@/components/ui/ProgressBar';
+import { FlowerColors } from '@/constants/colors';
+import { getFlowerState, getUsagePercent } from '@/utils/screenTime';
+import { formatDurationT } from '@/i18n';
+import { Child } from '@/types';
 
 export default function MessagesScreen() {
   const t = useTranslation();
@@ -49,6 +58,38 @@ export default function MessagesScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [familyTreeId, setFamilyTreeId] = useState<string | null>(null);
+  const [showAddChild, setShowAddChild] = useState(false);
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pinIntent, setPinIntent] = useState<{ type: 'open'; childId: string } | { type: 'add' } | null>(null);
+  const isUnlocked = useParentPinStore(s => s.isUnlocked);
+
+  const handleChildPress = useCallback((child: Child) => {
+    if (!isUnlocked) {
+      setPinIntent({ type: 'open', childId: child.id });
+      setShowPinModal(true);
+    } else {
+      router.push(`/child/${child.id}` as any);
+    }
+  }, [isUnlocked]);
+
+  const handleAddChild = useCallback(() => {
+    if (!isUnlocked) {
+      setPinIntent({ type: 'add' });
+      setShowPinModal(true);
+    } else {
+      setShowAddChild(true);
+    }
+  }, [isUnlocked]);
+
+  const handlePinSuccess = useCallback(() => {
+    setShowPinModal(false);
+    if (pinIntent?.type === 'open') {
+      router.push(`/child/${pinIntent.childId}` as any);
+    } else if (pinIntent?.type === 'add') {
+      setShowAddChild(true);
+    }
+    setPinIntent(null);
+  }, [pinIntent]);
 
   // Refs
   const rankingListRef = useRef<FlatList>(null);
@@ -186,8 +227,7 @@ export default function MessagesScreen() {
 
   const handleChatRoomPress = useCallback((roomId: string) => {
     setActiveChatRoom(roomId);
-    // Navigate to chat detail screen
-    // router.push(`/chat/${roomId}`);
+    router.push(`/chat/${roomId}` as any);
   }, [setActiveChatRoom]);
 
   const handleCreateDirectChat = async (otherParentId: string) => {
@@ -335,6 +375,64 @@ export default function MessagesScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
+        {/* My Children Section */}
+        <View style={styles.childrenSection}>
+          <View style={styles.childrenHeader}>
+            <Text style={styles.childrenSectionTitle}>{t.children.title}</Text>
+            <TouchableOpacity onPress={handleAddChild} style={styles.childrenAddBtn} activeOpacity={0.85}>
+              <Ionicons name="add" size={18} color="#fff" />
+            </TouchableOpacity>
+          </View>
+
+          {children.length === 0 ? (
+            <TouchableOpacity onPress={handleAddChild} style={styles.childrenEmpty} activeOpacity={0.85}>
+              <View style={styles.childrenEmptyIcon}>
+                <Text style={{ fontSize: 24 }}>🌱</Text>
+              </View>
+              <Text style={styles.childrenEmptyTitle}>{t.children.empty}</Text>
+              <Text style={styles.childrenEmptyHint}>
+                {t.children.emptyHint ?? "Farzandingizni qo'shing"}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.childrenScroll}
+            >
+              {children.map(child => {
+                const state = getFlowerState(child.screenTimeToday, child.dailyLimitMinutes);
+                const percent = getUsagePercent(child.screenTimeToday, child.dailyLimitMinutes);
+                const stateColor = FlowerColors[state];
+                const initials = child.name.split(' ').map(w => w[0] ?? '').join('').slice(0, 2).toUpperCase();
+                return (
+                  <TouchableOpacity
+                    key={child.id}
+                    style={styles.childCard}
+                    onPress={() => handleChildPress(child)}
+                    activeOpacity={0.85}
+                  >
+                    <View style={[styles.childAvatar, {
+                      backgroundColor: child.flowerColor + '22',
+                      borderColor: child.flowerColor,
+                    }]}>
+                      <Text style={[styles.childAvatarText, { color: child.flowerColor }]}>{initials}</Text>
+                      <View style={[styles.childStateDot, { backgroundColor: stateColor.primary }]} />
+                    </View>
+                    <Text style={styles.childName} numberOfLines={1}>{child.name}</Text>
+                    <View style={styles.childProgress}>
+                      <ProgressBar progress={percent} state={state} height={3} />
+                    </View>
+                    <Text style={styles.childTime}>
+                      {formatDurationT(child.screenTimeToday, t)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          )}
+        </View>
+
         {/* Family Standing Section */}
         <View style={styles.familyStandingSection}>
           <View style={styles.standingHeader}>
@@ -459,6 +557,13 @@ export default function MessagesScreen() {
       </ScrollView>
 
       {/* Modals */}
+      <AddChildModal visible={showAddChild} onClose={() => setShowAddChild(false)} />
+      <ParentPinModal
+        visible={showPinModal}
+        onClose={() => { setShowPinModal(false); setPinIntent(null); }}
+        onSuccess={handlePinSuccess}
+      />
+
       <CreateChatModal
         visible={showCreateChat}
         onClose={() => setShowCreateChat(false)}
@@ -580,6 +685,97 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingBottom: Spacing.xl * 2,
   },
+  childrenSection: {
+    marginTop: Spacing.md,
+    paddingHorizontal: Spacing.md,
+  },
+  childrenHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.sm,
+  },
+  childrenSectionTitle: {
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.semibold,
+    color: Colors.textPrimary,
+  },
+  childrenAddBtn: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: Colors.primary,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  childrenScroll: {
+    gap: Spacing.sm,
+    paddingVertical: 4,
+    paddingRight: Spacing.md,
+  },
+  childCard: {
+    width: 110,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    borderWidth: 0.5,
+    borderColor: Colors.border,
+    padding: Spacing.sm,
+    alignItems: 'center',
+    gap: 6,
+  },
+  childAvatar: {
+    width: 48, height: 48,
+    borderRadius: 14,
+    borderWidth: 2,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  childAvatarText: {
+    fontSize: 15,
+    fontWeight: FontWeight.semibold,
+  },
+  childStateDot: {
+    position: 'absolute', bottom: -2, right: -2,
+    width: 11, height: 11, borderRadius: 6,
+    borderWidth: 2, borderColor: Colors.surface,
+  },
+  childName: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.medium,
+    color: Colors.textPrimary,
+    textAlign: 'center',
+  },
+  childProgress: {
+    width: '100%',
+    paddingHorizontal: 4,
+  },
+  childTime: {
+    fontSize: 10,
+    color: Colors.textMuted,
+  },
+  childrenEmpty: {
+    alignItems: 'center',
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.md,
+    gap: 6,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    borderWidth: 0.5,
+    borderColor: Colors.border,
+  },
+  childrenEmptyIcon: {
+    width: 48, height: 48, borderRadius: 24,
+    backgroundColor: Colors.primaryPale,
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 4,
+  },
+  childrenEmptyTitle: {
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.semibold,
+    color: Colors.textPrimary,
+  },
+  childrenEmptyHint: {
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+    textAlign: 'center',
+  },
+
   familyStandingSection: {
     marginTop: Spacing.md,
     backgroundColor: Colors.surface,

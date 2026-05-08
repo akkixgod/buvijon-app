@@ -159,10 +159,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return { ok: false, error: 'Не удалось получить токен Google. Проверьте Web Client ID.' };
       }
 
-      const { data, error } = await supabase.auth.signInWithIdToken({
+      const authPromise = supabase.auth.signInWithIdToken({
         provider: 'google',
         token: idToken,
       });
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('TIMEOUT')), 20_000)
+      );
+      const { data, error } = await Promise.race([authPromise, timeoutPromise]);
       if (error) return { ok: false, error: error.message };
       if (!data.user) return { ok: false, error: 'Пользователь не найден' };
 
@@ -206,8 +210,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return { ok: true, isNewUser: true };
       }
     } catch (e: any) {
-      const msg = e?.code === 'SIGN_IN_CANCELLED'
-        ? 'Вход отменён'
+      const code = e?.code ?? '';
+      const msg = code === 'SIGN_IN_CANCELLED' || e.message === 'SIGN_IN_CANCELLED'
+        ? 'SIGN_IN_CANCELLED'
+        : e.message === 'TIMEOUT'
+        ? 'TIMEOUT'
         : (e.message ?? 'Ошибка входа через Google');
       return { ok: false, error: msg };
     }

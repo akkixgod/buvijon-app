@@ -15,7 +15,7 @@ const { width: SW } = Dimensions.get('window');
 // Tab configuration (excluding hidden settings)
 const TAB_ICONS: Record<string, { active: string; inactive: string }> = {
   index: { active: 'home', inactive: 'home-outline' },
-  children: { active: 'people', inactive: 'people-outline' },
+  oila: { active: 'people', inactive: 'people-outline' },
   create: { active: 'add', inactive: 'add' },
   reports: { active: 'bar-chart', inactive: 'bar-chart-outline' },
   ai: { active: 'search', inactive: 'search-outline' },
@@ -27,7 +27,7 @@ function LiquidTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
 
   // Filter visible routes (exclude hidden tabs)
   const visibleRoutes = state.routes.filter(r =>
-    r.name !== 'settings' && r.name !== 'create'
+    r.name !== 'settings' && r.name !== 'create' && r.name !== 'children' && r.name !== 'messages'
   );
   const tabCount = visibleRoutes.length;
   const tabW = SW / tabCount;
@@ -149,7 +149,9 @@ export default function TabsLayout() {
       screenOptions={{ headerShown: false }}
     >
       <Tabs.Screen name="index" options={{ title: t.tabs.garden }} />
-      <Tabs.Screen name="children" options={{ title: t.tabs.children }} />
+      <Tabs.Screen name="oila" options={{ title: t.tabs.children }} />
+      <Tabs.Screen name="children" options={{ href: null }} />
+      <Tabs.Screen name="messages" options={{ href: null }} />
       <Tabs.Screen name="create" options={{ href: null }} />
       <Tabs.Screen name="reports" options={{ title: t.tabs.reports }} />
       <Tabs.Screen name="ai" options={{ title: t.tabs.search }} />

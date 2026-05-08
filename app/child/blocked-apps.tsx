@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
   Platform, ActivityIndicator, Alert,
@@ -11,6 +11,13 @@ import { Colors } from '@/constants/colors';
 import { Spacing, Radius, FontSize, FontWeight } from '@/constants/theme';
 import { useTranslation } from '@/i18n';
 import { useChildrenStore } from '@/store/childrenStore';
+import { AiService, AppClassification, RiskLevel } from '@/services/aiService';
+
+const RISK_COLOR: Record<RiskLevel, string> = {
+  low: Colors.blooming,
+  medium: Colors.warning,
+  high: Colors.wilting,
+};
 
 // Well-known apps shown at top (even if not installed)
 const POPULAR_APPS: { packageName: string; appName: string; icon: string; color: string; bg: string }[] = [
@@ -57,9 +64,36 @@ export default function BlockedAppsScreen() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [saving, setSaving] = useState(false);
+  const [classifications, setClassifications] = useState<Map<string, AppClassification>>(new Map());
 
   useEffect(() => {
     loadApps();
+  }, []);
+
+  // Fetch AI classifications once apps are loaded.
+  useEffect(() => {
+    if (installedApps.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const names = installedApps.map(a => a.appName);
+        const results = await AiService.classifyApps(names);
+        if (cancelled) return;
+        const map = new Map<string, AppClassification>();
+        for (const r of results) {
+          map.set(r.app_name.toLowerCase(), r);
+        }
+        setClassifications(map);
+      } catch {
+        // Silent fail — badges just won't show.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [installedApps]);
+
+  const showReasoning = useCallback((appName: string, reasoning?: string) => {
+    if (!reasoning) return;
+    Alert.alert(appName, reasoning);
   }, []);
 
   const loadApps = () => {
@@ -132,18 +166,30 @@ export default function BlockedAppsScreen() {
     const iconName = item.icon || 'apps';
     const iconColor = item.color || Colors.textSecondary;
     const iconBg = item.bg || Colors.borderLight;
+    const classification = classifications.get(item.appName.toLowerCase());
 
     return (
       <TouchableOpacity
         style={[styles.appRow, isSelected && styles.appRowSelected]}
         onPress={() => toggle(item.packageName)}
+        onLongPress={() => classification && showReasoning(item.appName, classification.reasoning)}
         activeOpacity={0.7}
       >
         <View style={[styles.appIcon, { backgroundColor: iconBg }]}>
           <Ionicons name={iconName as any} size={20} color={iconColor} />
         </View>
         <View style={styles.appInfo}>
-          <Text style={styles.appName}>{item.appName}</Text>
+          <View style={styles.appNameRow}>
+            <Text style={styles.appName} numberOfLines={1}>{item.appName}</Text>
+            {classification && (
+              <View style={styles.categoryBadge}>
+                <Text style={styles.categoryText}>
+                  {t.blockedApps.categories[classification.category]}
+                </Text>
+                <View style={[styles.riskDot, { backgroundColor: RISK_COLOR[classification.risk_level] }]} />
+              </View>
+            )}
+          </View>
           <Text style={styles.appPkg} numberOfLines={1}>{item.packageName}</Text>
         </View>
         <View style={[styles.checkbox, isSelected && styles.checkboxActive]}>
@@ -283,9 +329,33 @@ const styles = StyleSheet.create({
     width: 40, height: 40, borderRadius: 10,
     alignItems: 'center', justifyContent: 'center',
   },
-  appInfo: { flex: 1 },
-  appName: { fontSize: FontSize.sm, fontWeight: FontWeight.medium, color: Colors.textPrimary },
+  appInfo: { flex: 1, gap: 2 },
+  appNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  appName: { flex: 1, fontSize: FontSize.sm, fontWeight: FontWeight.medium, color: Colors.textPrimary },
   appPkg: { fontSize: 10, color: Colors.textMuted, marginTop: 1 },
+  categoryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.surfaceSecondary,
+  },
+  categoryText: {
+    fontSize: 10,
+    fontWeight: FontWeight.medium,
+    color: Colors.textSecondary,
+  },
+  riskDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
   checkbox: {
     width: 24, height: 24, borderRadius: 6,
     borderWidth: 2, borderColor: Colors.border,

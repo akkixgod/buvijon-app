@@ -91,13 +91,27 @@ export default function LoginScreen() {
               onPress={async () => {
                 setGoogleLoading(true);
                 setError('');
-                const result = await signInWithGoogle();
-                setGoogleLoading(false);
-                if (result.ok) {
-                  if (result.isNewUser) router.replace('/onboarding');
-                  else router.replace('/(tabs)');
-                } else {
-                  setError(result.error ?? 'Google error');
+                try {
+                  const result = await signInWithGoogle();
+                  if (result.ok) {
+                    if (result.isNewUser) router.replace('/onboarding');
+                    else router.replace('/(tabs)');
+                  } else {
+                    const raw = result.error ?? '';
+                    if (raw.includes('DEVELOPER_ERROR') || raw.includes('12500')) {
+                      setError(t.login.googleConfigError ?? "Google kirish sozlanmagan. Email orqali kiring.");
+                    } else if (raw.includes('SIGN_IN_CANCELLED') || raw.includes('12501') || raw === 'SIGN_IN_CANCELLED') {
+                      setError('');
+                    } else if (raw === 'TIMEOUT') {
+                      setError(t.login.googleError ?? "Google ulanish vaqti tugadi. Qayta urining.");
+                    } else {
+                      setError(t.login.googleError ?? "Google orqali kirishda xatolik. Qayta urining.");
+                    }
+                  }
+                } catch {
+                  setError(t.login.googleError ?? "Google orqali kirishda xatolik. Qayta urining.");
+                } finally {
+                  setGoogleLoading(false);
                 }
               }}
               disabled={googleLoading}

@@ -482,72 +482,68 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
 
   // Create Direct Chat
   createDirectChat: async (otherParentId: string) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
 
-      // Find a family tree where both parents are members
-      // First get user's family trees
-      const { data: userFamilies } = await supabase
-        .from('family_members')
-        .select('family_tree_id')
-        .eq('parent_id', user.id);
+    const sortedIds = [user.id, otherParentId].sort();
 
-      const userFamilyIds = (userFamilies || []).map(f => f.family_tree_id);
+    // 1. Check if a direct DM already exists between these two users (any tree or global).
+    const { data: existingChats } = await supabase
+      .from('chat_rooms')
+      .select('id, metadata')
+      .eq('room_type', 'direct');
 
-      // Then check if other parent is in any of those families
-      const { data: sharedFamily } = await supabase
+    const existing = (existingChats ?? []).find(room => {
+      const parts: string[] = room.metadata?.participants ?? [];
+      return parts.join(',') === sortedIds.join(',');
+    });
+    if (existing) return existing.id;
+
+    // 2. Prefer a shared family tree, fall back to requester's first tree, then null.
+    const { data: userFamilies } = await supabase
+      .from('family_members')
+      .select('family_tree_id')
+      .eq('parent_id', user.id);
+
+    const userFamilyIds = (userFamilies ?? []).map(f => f.family_tree_id);
+
+    let familyTreeId: string | null = null;
+    if (userFamilyIds.length > 0) {
+      const { data: shared } = await supabase
         .from('family_members')
         .select('family_tree_id')
         .eq('parent_id', otherParentId)
-        .in('family_tree_id', userFamilyIds.length > 0 ? userFamilyIds : ['none'])
+        .in('family_tree_id', userFamilyIds)
         .limit(1)
         .maybeSingle();
-
-      if (!sharedFamily) {
-        throw new Error('No shared family tree found');
-      }
-
-      // Check if direct chat already exists
-      const { data: existingChat } = await supabase
-        .from('chat_rooms')
-        .select('*')
-        .eq('family_tree_id', sharedFamily.family_tree_id)
-        .eq('room_type', 'direct')
-        .contains('metadata', { participants: [user.id, otherParentId].sort() })
-        .limit(1)
-        .single();
-
-      if (existingChat) {
-        return existingChat.id;
-      }
-
-      // Create new direct chat room
-      const { data: newChat, error } = await supabase
-        .from('chat_rooms')
-        .insert({
-          family_tree_id: sharedFamily.family_tree_id,
-          room_type: 'direct',
-          room_name: 'Direct Chat',
-          metadata: { participants: [user.id, otherParentId].sort() }
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      // Add both participants
-      await supabase.from('chat_participants').insert([
-        { chat_room_id: newChat.id, parent_id: user.id },
-        { chat_room_id: newChat.id, parent_id: otherParentId }
-      ]);
-
-      return newChat.id;
-
-    } catch (error: any) {
-      console.error('Error creating direct chat:', error);
-      throw error;
+      familyTreeId = shared?.family_tree_id ?? userFamilyIds[0] ?? null;
     }
+
+    // 3. Create the room.
+    const { data: newChat, error } = await supabase
+      .from('chat_rooms')
+      .insert({
+        family_tree_id: familyTreeId,
+        room_type: 'direct',
+        room_name: 'Direct Chat',
+        created_by: user.id,
+        metadata: { participants: sortedIds },
+      })
+      .select('id')
+      .single();
+
+    if (error) throw error;
+
+    // 4. Add participants (ignore duplicate errors).
+    await supabase.from('chat_participants').upsert(
+      [
+        { chat_room_id: newChat.id, parent_id: user.id },
+        { chat_room_id: newChat.id, parent_id: otherParentId },
+      ],
+      { onConflict: 'chat_room_id,parent_id' }
+    );
+
+    return newChat.id;
   },
 
   // ============================================================================

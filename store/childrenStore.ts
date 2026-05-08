@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
 import { Child, FlowerVariant } from '@/types';
 
@@ -10,11 +11,14 @@ try {
   ScreenTime = null;
 }
 
+const CHILDREN_CACHE_KEY = 'buvijon_children_cache';
+
 interface ChildrenState {
   children: Child[];
   isLoading: boolean;
   currentActiveChildId: string | null;  // Tracks which child is currently active (via PIN)
 
+  loadCachedChildren: () => Promise<void>;
   loadChildren: () => Promise<void>;
   addChild: (data: Omit<Child, 'id' | 'createdAt' | 'screenTimeToday' | 'screenTimeWeek' | 'blockedApps' | 'isActive'>) => Promise<void>;
   updateChild: (id: string, data: Partial<Child>) => Promise<void>;
@@ -51,8 +55,21 @@ export const useChildrenStore = create<ChildrenState>((set, get) => ({
   isLoading: false,
   currentActiveChildId: null,
 
+  loadCachedChildren: async () => {
+    try {
+      const cached = await AsyncStorage.getItem(CHILDREN_CACHE_KEY);
+      if (cached) {
+        const children = JSON.parse(cached) as Child[];
+        if (Array.isArray(children) && children.length > 0) {
+          set({ children });
+        }
+      }
+    } catch (_) {}
+  },
+
   loadChildren: async () => {
-    set({ isLoading: true });
+    const hasCached = get().children.length > 0;
+    if (!hasCached) set({ isLoading: true });
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
@@ -65,7 +82,9 @@ export const useChildrenStore = create<ChildrenState>((set, get) => ({
         .order('created_at', { ascending: true });
 
       if (!error && data) {
-        set({ children: data.map(rowToChild) });
+        const children = data.map(rowToChild);
+        set({ children });
+        AsyncStorage.setItem(CHILDREN_CACHE_KEY, JSON.stringify(children)).catch(() => {});
       }
     } catch (_) {
     } finally {

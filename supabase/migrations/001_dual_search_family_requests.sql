@@ -40,6 +40,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_update_family_requests_timestamp ON family_requests;
 CREATE TRIGGER trigger_update_family_requests_timestamp
   BEFORE UPDATE ON family_requests
   FOR EACH ROW
@@ -55,13 +56,17 @@ ADD COLUMN IF NOT EXISTS handle VARCHAR(50) UNIQUE;
 
 -- Add constraint to ensure invite codes don't expire
 ALTER TABLE family_trees
-ADD CONSTRAINT family_trees_invite_code_permanent
-CHECK (invite_code IS NOT NULL AND length(invite_code) = 12);
+  DROP CONSTRAINT IF EXISTS family_trees_invite_code_permanent;
+ALTER TABLE family_trees
+  ADD CONSTRAINT family_trees_invite_code_permanent
+  CHECK (invite_code IS NOT NULL AND length(invite_code) = 12);
 
 -- Ensure invite links follow proper Expo format
 ALTER TABLE family_trees
-ADD CONSTRAINT family_trees_invite_link_format
-CHECK (invite_link LIKE 'https://buvijon.app/join/%');
+  DROP CONSTRAINT IF EXISTS family_trees_invite_link_format;
+ALTER TABLE family_trees
+  ADD CONSTRAINT family_trees_invite_link_format
+  CHECK (invite_link LIKE 'https://buvijon.app/join/%');
 
 -- Add index for family_handle searches
 CREATE INDEX IF NOT EXISTS idx_family_trees_handle ON family_trees(handle);
@@ -86,6 +91,7 @@ CREATE INDEX IF NOT EXISTS idx_profiles_name ON profiles(name);
 ALTER TABLE family_requests ENABLE ROW LEVEL SECURITY;
 
 -- Family requests policies - Only creator/admin can see and manage requests
+DROP POLICY IF EXISTS "Family tree creators can view requests for their trees" ON family_requests;
 CREATE POLICY "Family tree creators can view requests for their trees"
   ON family_requests FOR SELECT
   USING (
@@ -94,6 +100,7 @@ CREATE POLICY "Family tree creators can view requests for their trees"
     )
   );
 
+DROP POLICY IF EXISTS "Family tree admins can view requests for their trees" ON family_requests;
 CREATE POLICY "Family tree admins can view requests for their trees"
   ON family_requests FOR SELECT
   USING (
@@ -105,10 +112,12 @@ CREATE POLICY "Family tree admins can view requests for their trees"
     )
   );
 
+DROP POLICY IF EXISTS "Requesters can view their own requests" ON family_requests;
 CREATE POLICY "Requesters can view their own requests"
   ON family_requests FOR SELECT
   USING (requester_id = auth.uid());
 
+DROP POLICY IF EXISTS "Family tree creators can manage requests for their trees" ON family_requests;
 CREATE POLICY "Family tree creators can manage requests for their trees"
   ON family_requests FOR ALL
   USING (
@@ -117,6 +126,7 @@ CREATE POLICY "Family tree creators can manage requests for their trees"
     )
   );
 
+DROP POLICY IF EXISTS "Family tree admins can manage requests for their trees" ON family_requests;
 CREATE POLICY "Family tree admins can manage requests for their trees"
   ON family_requests FOR ALL
   USING (
@@ -128,6 +138,7 @@ CREATE POLICY "Family tree admins can manage requests for their trees"
     )
   );
 
+DROP POLICY IF EXISTS "Users can create requests to join family trees" ON family_requests;
 CREATE POLICY "Users can create requests to join family trees"
   ON family_requests FOR INSERT
   WITH CHECK (requester_id = auth.uid());
@@ -139,6 +150,7 @@ CREATE POLICY "Users can create requests to join family trees"
 -- Update existing ranking cache policy to only allow accepted family members
 DROP POLICY IF EXISTS "Users can view ranking of their family members" ON ranking_cache;
 
+DROP POLICY IF EXISTS "Users can view ranking of their accepted family members only" ON ranking_cache;
 CREATE POLICY "Users can view ranking of their accepted family members only"
   ON ranking_cache FOR SELECT
   USING (
@@ -157,6 +169,7 @@ CREATE POLICY "Users can view ranking of their accepted family members only"
   );
 
 -- Alternative simpler policy: users can view ranking of their own children
+DROP POLICY IF EXISTS "Users can view ranking of their own children" ON ranking_cache;
 CREATE POLICY "Users can view ranking of their own children"
   ON ranking_cache FOR SELECT
   USING (
@@ -369,7 +382,10 @@ $$ LANGUAGE plpgsql;
 -- ============================================================================
 
 -- Enable realtime for family_requests
-ALTER PUBLICATION supabase_realtime ADD TABLE family_requests;
+DO $$ BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE family_requests;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- ============================================================================
 -- COMPLETION MESSAGE

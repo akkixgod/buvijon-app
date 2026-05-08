@@ -15,6 +15,8 @@ export interface T {
     registerLink: string;
     orDivider: string;
     google: string;
+    googleConfigError: string;
+    googleError: string;
     errEmpty: string;
     errInvalid: string;
     errSend: string;
@@ -317,6 +319,11 @@ export interface T {
     mentalCaseSub: string;
     fullDayNames: string[];
     monthNames: string[];
+    weeklyInsight: string;
+    generating: string;
+    refresh: string;
+    retry: string;
+    trends: { improving: string; worsening: string; stable: string };
   };
 
   ai: {
@@ -354,6 +361,21 @@ export interface T {
     overlayTitle: string;
     overlayMsg: string;
     overlayGrant: string;
+    categories: {
+      social: string;
+      game: string;
+      video: string;
+      education: string;
+      messenger: string;
+      browser: string;
+      utility: string;
+      other: string;
+    };
+    riskLevels: {
+      low: string;
+      medium: string;
+      high: string;
+    };
   };
 
   parentPin: {
@@ -457,6 +479,8 @@ const ru: T = {
     registerLink: 'Зарегистрироваться',
     orDivider: 'или',
     google: 'Войти через Google',
+    googleConfigError: 'Google не настроен. Используйте вход через email.',
+    googleError: 'Ошибка Google. Попробуйте снова.',
     errEmpty: 'Введите email адрес',
     errInvalid: 'Введите корректный email',
     errSend: 'Ошибка отправки кода',
@@ -658,6 +682,11 @@ const ru: T = {
     mentalCaseSub: 'Качество использования и оценка благополучия',
     fullDayNames: ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'],
     monthNames: ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'],
+    weeklyInsight: 'недельный анализ',
+    generating: 'анализ генерируется...',
+    refresh: 'Обновить',
+    retry: 'Повторить',
+    trends: { improving: 'улучшение', worsening: 'ухудшение', stable: 'стабильно' },
   },
   ai: {
     headerTitle: 'Buvijon AI',
@@ -697,6 +726,21 @@ const ru: T = {
     overlayTitle: 'Нужно разрешение',
     overlayMsg: 'Для блокировки приложений нужно разрешение на отображение поверх других приложений.',
     overlayGrant: 'Открыть настройки',
+    categories: {
+      social: 'Соцсеть',
+      game: 'Игра',
+      video: 'Видео',
+      education: 'Учёба',
+      messenger: 'Мессенджер',
+      browser: 'Браузер',
+      utility: 'Утилита',
+      other: 'Другое',
+    },
+    riskLevels: {
+      low: 'низкий риск',
+      medium: 'средний риск',
+      high: 'высокий риск',
+    },
   },
   parentPin: {
     title: 'Защита родительского доступа',
@@ -806,6 +850,8 @@ const uzCyrillic: T = {
     registerLink: 'Рўйхатдан ўтиш',
     orDivider: 'ёки',
     google: 'Google орқали кириш',
+    googleConfigError: 'Google созланмаган. Email орқали киринг.',
+    googleError: 'Google хатолик. Қайта уриниб кўринг.',
     errEmpty: 'Емаил киритинг',
     errInvalid: 'Тўғри емаил киритинг',
     errSend: 'Код юборишда хато',
@@ -1007,6 +1053,11 @@ const uzCyrillic: T = {
     mentalCaseSub: 'Фойдаланиш сифати ва фаровонлик баллари',
     fullDayNames: ['якшанба', 'душанба', 'сешанба', 'чоршанба', 'пайшанба', 'жума', 'шанба'],
     monthNames: ['январ', 'феврал', 'март', 'апрел', 'май', 'июн', 'июл', 'август', 'сентябр', 'октябр', 'ноябр', 'декабр'],
+    weeklyInsight: 'ҳафталик таҳлил',
+    generating: 'таҳлил тайёрланмоқда...',
+    refresh: 'Янгилаш',
+    retry: 'Қайта уриниш',
+    trends: { improving: 'яхшиланмоқда', worsening: 'ёмонлашмоқда', stable: 'барқарор' },
   },
   ai: {
     headerTitle: 'Buvijon AI',
@@ -1046,6 +1097,21 @@ const uzCyrillic: T = {
     overlayTitle: 'Рухсат керак',
     overlayMsg: 'Дастурларни блоклаш учун бошқа дастурлар устидан кўрсатиш рухсати керак.',
     overlayGrant: 'Созламаларни очиш',
+    categories: {
+      social: 'Ижтимоий',
+      game: 'Ўйин',
+      video: 'Видео',
+      education: 'Таълим',
+      messenger: 'Мессенжер',
+      browser: 'Браузер',
+      utility: 'Восита',
+      other: 'Бошқа',
+    },
+    riskLevels: {
+      low: 'паст хавф',
+      medium: 'ўрта хавф',
+      high: 'юқори хавф',
+    },
   },
   parentPin: {
     title: 'Ота-оналликниши ҳароҳати',
@@ -1155,6 +1221,8 @@ const uzLatin: T = {
     registerLink: "Ro'yxatdan o'tish",
     orDivider: 'yoki',
     google: 'Google orqali kirish',
+    googleConfigError: "Google sozlanmagan. Email orqali kiring.",
+    googleError: "Google xatolik. Qayta urining.",
     errEmpty: 'Email kiriting',
     errInvalid: "To'g'ri email kiriting",
     errSend: 'Kod yuborishda xato',
@@ -1356,6 +1424,11 @@ const uzLatin: T = {
     mentalCaseSub: "Foydalanish sifati va farovonlik ballari",
     fullDayNames: ['yakshanba', 'dushanba', 'seshanba', 'chorshanba', 'payshanba', 'juma', 'shanba'],
     monthNames: ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avgust', 'sentabr', 'oktabr', 'noyabr', 'dekabr'],
+    weeklyInsight: 'haftalik tahlil',
+    generating: 'tahlil tayyorlanmoqda...',
+    refresh: 'Yangilash',
+    retry: 'Qayta urinish',
+    trends: { improving: 'yaxshilanmoqda', worsening: 'yomonlashmoqda', stable: 'barqaror' },
   },
   ai: {
     headerTitle: 'Buvijon AI',
@@ -1395,6 +1468,21 @@ const uzLatin: T = {
     overlayTitle: 'Ruxsat kerak',
     overlayMsg: 'Dasturlarni bloklash uchun boshqa dasturlar ustidan ko\'rsatish ruxsati kerak.',
     overlayGrant: 'Sozlamalarni ochish',
+    categories: {
+      social: 'Ijtimoiy',
+      game: "O'yin",
+      video: 'Video',
+      education: "Ta'lim",
+      messenger: 'Messenjer',
+      browser: 'Brauzer',
+      utility: 'Vosita',
+      other: 'Boshqa',
+    },
+    riskLevels: {
+      low: 'past xavf',
+      medium: "o'rta xavf",
+      high: 'yuqori xavf',
+    },
   },
   parentPin: {
     title: 'Ota-ona kirishni himoyalang',

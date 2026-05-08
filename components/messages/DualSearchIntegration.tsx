@@ -5,7 +5,7 @@ import DualSearchScreen from './DualSearchScreen';
 import { useMessagesStore } from '@/store/messagesStore';
 import { useAuthStore } from '@/store/authStore';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Typography } from '@/constants/theme';
+import { Colors, Spacing, FontSize, FontWeight } from '@/constants/theme';
 
 interface DualSearchIntegrationProps {
   familyTreeId: string;

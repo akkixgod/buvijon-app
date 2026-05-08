@@ -8,6 +8,7 @@
 -- ============================================================
 
 drop policy if exists "Users can update own posts" on posts;
+drop policy if exists "Authors can update own posts" on posts;
 
 create policy "Authors can update own posts" on posts
   for update using (auth.uid() = author_id);

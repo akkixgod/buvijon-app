@@ -1,16 +1,18 @@
 import React, { useState, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TextInput,
-  TouchableOpacity, ActivityIndicator,
+  TouchableOpacity, ActivityIndicator, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { Colors } from '@/constants/colors';
 import { Spacing, Radius, FontSize, FontWeight } from '@/constants/theme';
 import { useTranslation } from '@/i18n';
 import { AvatarCircle } from '@/components/ui/AvatarCircle';
+import { useMessagesStore } from '@/store/messagesStore';
 
 interface SearchResult {
   id: string;
@@ -26,6 +28,21 @@ export default function SearchScreen() {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [openingChatId, setOpeningChatId] = useState<string | null>(null);
+  const createDirectChat = useMessagesStore(s => s.createDirectChat);
+
+  const handleResultPress = useCallback(async (user: SearchResult) => {
+    if (openingChatId) return;
+    setOpeningChatId(user.id);
+    try {
+      const chatId = await createDirectChat(user.id);
+      router.push(`/chat/${chatId}` as any);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Could not start a chat with this user');
+    } finally {
+      setOpeningChatId(null);
+    }
+  }, [createDirectChat, openingChatId]);
 
   const doSearch = useCallback(async (raw: string) => {
     const clean = raw.startsWith('@') ? raw.slice(1).trim() : raw.trim();
@@ -59,16 +76,27 @@ export default function SearchScreen() {
     debounceRef.current = setTimeout(() => doSearch(val), 400);
   };
 
-  const renderItem = ({ item }: { item: SearchResult }) => (
-    <TouchableOpacity style={styles.resultRow} activeOpacity={0.75}>
-      <AvatarCircle uri={item.avatar} name={item.name} size={44} />
-      <View style={styles.resultInfo}>
-        <Text style={styles.resultName}>{item.name}</Text>
-        <Text style={styles.resultUsername}>@{item.username}</Text>
-      </View>
-      <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
-    </TouchableOpacity>
-  );
+  const renderItem = ({ item }: { item: SearchResult }) => {
+    const isOpening = openingChatId === item.id;
+    return (
+      <TouchableOpacity
+        style={styles.resultRow}
+        activeOpacity={0.75}
+        onPress={() => handleResultPress(item)}
+        disabled={isOpening}
+      >
+        <AvatarCircle uri={item.avatar} name={item.name} size={44} />
+        <View style={styles.resultInfo}>
+          <Text style={styles.resultName}>{item.name}</Text>
+          <Text style={styles.resultUsername}>@{item.username}</Text>
+        </View>
+        {isOpening
+          ? <ActivityIndicator size="small" color={Colors.primary} />
+          : <Ionicons name="chatbubble-ellipses-outline" size={20} color={Colors.primary} />
+        }
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>

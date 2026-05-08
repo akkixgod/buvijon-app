@@ -52,6 +52,20 @@ CREATE INDEX IF NOT EXISTS idx_chat_rooms_pinned ON chat_rooms(is_pinned, create
 -- BUVIJON BOT PROFILE
 -- ============================================================================
 
+-- Add is_bot column if it doesn't exist
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS is_bot BOOLEAN DEFAULT false;
+
+-- Create bot user in auth.users first (required by FK constraint)
+INSERT INTO auth.users (
+  id, email, created_at, updated_at,
+  email_confirmed_at, role, aud, is_sso_user, is_anonymous
+) VALUES (
+  '00000000-0000-0000-0000-000000000001',
+  'buvijon@system.app',
+  NOW(), NOW(), NOW(),
+  'authenticated', 'authenticated', false, false
+) ON CONFLICT (id) DO NOTHING;
+
 -- Create or update Buvijon bot profile
 INSERT INTO profiles (id, name, username, email, is_bot)
 VALUES (
@@ -355,6 +369,7 @@ $$ LANGUAGE plpgsql;
 -- Drop existing triggers if they exist
 DROP TRIGGER IF EXISTS trigger_notify_family_request_created ON family_requests;
 DROP TRIGGER IF EXISTS trigger_notify_family_request_updated ON family_requests;
+DROP TRIGGER IF EXISTS trigger_notify_family_request_declined ON family_requests;
 
 -- Create trigger for new family requests
 CREATE TRIGGER trigger_notify_family_request_created
@@ -543,14 +558,20 @@ $$ LANGUAGE plpgsql;
 -- TRIGGER FOR AUTOMATIC SYSTEM CHAT CREATION
 -- ============================================================================
 
--- Drop existing trigger if exists
-DROP TRIGGER IF EXISTS trigger_create_family_system_chat ON family_trees;
+-- Wrapper function that reads NEW inside the trigger context
+CREATE OR REPLACE FUNCTION trigger_create_family_system_chat_fn()
+RETURNS TRIGGER AS $$
+BEGIN
+  PERFORM create_family_system_chat(NEW.id, NEW.created_by);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 
--- Create trigger to automatically create system chat for new family trees
+DROP TRIGGER IF EXISTS trigger_create_family_system_chat ON family_trees;
 CREATE TRIGGER trigger_create_family_system_chat
   AFTER INSERT ON family_trees
   FOR EACH ROW
-  EXECUTE FUNCTION create_family_system_chat(NEW.id, NEW.created_by);
+  EXECUTE FUNCTION trigger_create_family_system_chat_fn();
 
 -- ============================================================================
 -- REALTIME SUBSCRIPTIONS FOR CHAT MESSAGES
@@ -592,6 +613,7 @@ ALTER TABLE chat_participants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
 
 -- Policy: Users can view system chats for their family trees
+DROP POLICY IF EXISTS "Users can view system chats for their families" ON chat_rooms;
 CREATE POLICY "Users can view system chats for their families"
   ON chat_rooms FOR SELECT
   USING (
@@ -602,6 +624,7 @@ CREATE POLICY "Users can view system chats for their families"
   );
 
 -- Policy: Users can participate in system chats for their families
+DROP POLICY IF EXISTS "Users can participate in system chats" ON chat_participants;
 CREATE POLICY "Users can participate in system chats"
   ON chat_participants FOR INSERT
   WITH CHECK (
