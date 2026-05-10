@@ -85,6 +85,10 @@ export const useChildrenStore = create<ChildrenState>((set, get) => ({
         const children = data.map(rowToChild);
         set({ children });
         AsyncStorage.setItem(CHILDREN_CACHE_KEY, JSON.stringify(children)).catch(() => {});
+        // Sync all child PINs to native blocker service after each load
+        if (Platform.OS === 'android' && ScreenTime) {
+          children.forEach(c => { try { ScreenTime!.setChildPin(c.id, c.pin); } catch {} });
+        }
       }
     } catch (_) {
     } finally {
@@ -115,7 +119,11 @@ export const useChildrenStore = create<ChildrenState>((set, get) => ({
       .single();
 
     if (!error && inserted) {
-      set(s => ({ children: [...s.children, rowToChild(inserted)] }));
+      const child = rowToChild(inserted);
+      set(s => ({ children: [...s.children, child] }));
+      if (Platform.OS === 'android' && ScreenTime) {
+        try { ScreenTime.setChildPin(child.id, child.pin); } catch {}
+      }
     }
   },
 
@@ -136,6 +144,9 @@ export const useChildrenStore = create<ChildrenState>((set, get) => ({
     const { error } = await supabase.from('children').update(updates).eq('id', id);
     if (!error) {
       set(s => ({ children: s.children.map(c => c.id === id ? { ...c, ...data } : c) }));
+      if (data.pin && Platform.OS === 'android' && ScreenTime) {
+        try { ScreenTime.setChildPin(id, data.pin); } catch {}
+      }
     }
   },
 
