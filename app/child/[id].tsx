@@ -88,6 +88,15 @@ export default function ChildDetailScreen() {
       if (ScreenTime.hasOverlayPermission()) {
         ScreenTime.startAppBlocker(child.blockedApps, child.name, child.id, child.pin);
         blockerStarted.current = true;
+      } else {
+        Alert.alert(
+          'Ruxsat kerak',
+          'Bloklash ishlashi uchun "Boshqa ilovalar ustidan ko\'rsatish" ruxsatini bering.',
+          [
+            { text: 'Bekor qilish', style: 'cancel' },
+            { text: 'Sozlamalarga o\'tish', onPress: () => ScreenTime?.requestOverlayPermission() },
+          ]
+        );
       }
     } else if (!overLimit && blockerStarted.current) {
       ScreenTime.stopAppBlocker();
