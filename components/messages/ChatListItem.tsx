@@ -274,7 +274,6 @@ const styles = StyleSheet.create({
   unreadCount: {
     fontSize: FontSize.xs,
     fontWeight: FontWeight.bold,
-    color: Colors.textOnDark,
     color: '#fff',
   },
   chevronContainer: {

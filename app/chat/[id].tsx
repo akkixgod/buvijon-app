@@ -10,6 +10,7 @@ import {
   Platform,
   ActivityIndicator,
   SafeAreaView,
+  Alert,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -28,7 +29,15 @@ function formatTime(iso: string): string {
 export default function ChatScreen() {
   const { id: roomId } = useLocalSearchParams<{ id: string }>();
   const parent = useAuthStore(s => s.parent);
-  const { chatRooms, loadMessages, sendMessage, markAsRead } = useMessagesStore();
+  const {
+    chatRooms,
+    loadMessages,
+    sendMessage,
+    markAsRead,
+    getCachedMessages,
+    retryFailedMessage,
+    flushOutbox,
+  } = useMessagesStore();
 
   const room = chatRooms.find(r => r.id === roomId);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -44,8 +53,14 @@ export default function ChatScreen() {
 
     (async () => {
       try {
+        const cached = getCachedMessages(roomId);
+        if (mounted && cached.length > 0) {
+          setMessages(cached);
+          setIsLoading(false);
+        }
         const msgs = await loadMessages(roomId);
         if (mounted) setMessages(msgs);
+        flushOutbox().catch(() => {});
       } catch (_) {
       } finally {
         if (mounted) setIsLoading(false);
@@ -94,12 +109,21 @@ export default function ChatScreen() {
     setIsSending(true);
     try {
       await sendMessage(roomId, text);
+      const latest = useMessagesStore.getState().getCachedMessages(roomId);
+      setMessages(latest);
     } catch (_) {
-      setInputText(text);
+      Alert.alert('Message not sent', 'Saved for retry when internet is back.');
     } finally {
       setIsSending(false);
     }
   }, [inputText, isSending, roomId, sendMessage]);
+
+  const handleRetry = useCallback(async (tempId: string) => {
+    await retryFailedMessage(tempId).catch(() => {});
+    if (roomId) {
+      setMessages(useMessagesStore.getState().getCachedMessages(roomId));
+    }
+  }, [retryFailedMessage, roomId]);
 
   const roomTypeIcon = room?.roomType === 'system' ? 'flame'
     : room?.roomType === 'group' ? 'people'
@@ -127,13 +151,22 @@ export default function ChatScreen() {
           <Text style={[styles.bubbleText, isOwn ? styles.ownText : styles.otherText]}>
             {item.content}
           </Text>
+          {item.localStatus === 'failed' && (
+            <TouchableOpacity onPress={() => handleRetry(item.id)} style={styles.retryChip}>
+              <Ionicons name="refresh" size={12} color={Colors.wilting} />
+              <Text style={styles.retryText}>Retry</Text>
+            </TouchableOpacity>
+          )}
+          {item.localStatus === 'pending' && (
+            <Text style={styles.pendingText}>Sending...</Text>
+          )}
           <Text style={[styles.timeText, isOwn ? styles.ownTime : styles.otherTime]}>
             {formatTime(item.createdAt)}
           </Text>
         </View>
       </View>
     );
-  }, [parent?.id]);
+  }, [handleRetry, parent?.id]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -162,8 +195,10 @@ export default function ChatScreen() {
         keyboardVerticalOffset={0}
       >
         {isLoading ? (
-          <View style={styles.center}>
-            <ActivityIndicator size="large" color={Colors.primary} />
+          <View style={styles.skeletonWrap}>
+            {[0, 1, 2, 3].map((idx) => (
+              <View key={idx} style={[styles.skeletonBubble, idx % 2 === 0 ? styles.skeletonLeft : styles.skeletonRight]} />
+            ))}
           </View>
         ) : messages.length === 0 ? (
           <View style={styles.center}>
@@ -236,6 +271,16 @@ const styles = StyleSheet.create({
   emptySubtext: { fontSize: FontSize.sm, color: Colors.textMuted },
 
   listContent: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, gap: Spacing.sm },
+  skeletonWrap: { flex: 1, justifyContent: 'center', gap: Spacing.md, paddingHorizontal: Spacing.lg },
+  skeletonBubble: {
+    height: 42,
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.surfaceSecondary,
+    borderWidth: 0.5,
+    borderColor: Colors.border,
+  },
+  skeletonLeft: { width: '68%', alignSelf: 'flex-start' },
+  skeletonRight: { width: '54%', alignSelf: 'flex-end' },
 
   bubbleRow: { maxWidth: '80%' },
   ownRow: { alignSelf: 'flex-end', alignItems: 'flex-end' },
@@ -243,8 +288,8 @@ const styles = StyleSheet.create({
   senderName: { fontSize: FontSize.xs, color: Colors.textMuted, marginBottom: 2, marginLeft: Spacing.xs },
 
   bubble: { borderRadius: Radius.lg, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
-  ownBubble: { backgroundColor: Colors.primary, borderBottomRightRadius: Radius.xs },
-  otherBubble: { backgroundColor: Colors.surfaceSecondary, borderBottomLeftRadius: Radius.xs },
+  ownBubble: { backgroundColor: Colors.primary, borderBottomRightRadius: Radius.sm },
+  otherBubble: { backgroundColor: Colors.surfaceSecondary, borderBottomLeftRadius: Radius.sm },
 
   bubbleText: { fontSize: FontSize.md },
   ownText: { color: '#FFFFFF' },
@@ -253,6 +298,19 @@ const styles = StyleSheet.create({
   timeText: { fontSize: FontSize.xs, marginTop: 2 },
   ownTime: { color: 'rgba(255,255,255,0.65)', textAlign: 'right' },
   otherTime: { color: Colors.textMuted },
+  retryChip: {
+    marginTop: 4,
+    flexDirection: 'row',
+    gap: 4,
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: Colors.wiltingLight,
+    borderRadius: Radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  retryText: { color: Colors.wilting, fontSize: FontSize.xs, fontWeight: FontWeight.medium },
+  pendingText: { marginTop: 3, color: Colors.textMuted, fontSize: FontSize.xs },
 
   systemMsgWrapper: { alignSelf: 'center', alignItems: 'center', marginVertical: Spacing.xs },
   systemMsgText: {

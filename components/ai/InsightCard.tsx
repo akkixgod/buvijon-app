@@ -39,7 +39,7 @@ export default function InsightCard({ childId, childName }: InsightCardProps) {
       const data = await AiService.getChildInsight(childId, force);
       setInsight(data);
     } catch (e: any) {
-      setError(e?.message || 'Tahlilni olishda xatolik');
+      setError(e?.message || 'AI tahlilni hozircha olish imkoni bo‘lmadi.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -73,7 +73,9 @@ export default function InsightCard({ childId, childName }: InsightCardProps) {
         <View style={styles.headerRow}>
           <Text style={styles.childName}>{childName}</Text>
         </View>
-        <Text style={styles.errorText}>{error ?? '—'}</Text>
+        <Text style={styles.errorText} numberOfLines={3}>
+          {error ?? 'AI tahlilni hozircha olish imkoni bo‘lmadi.'}
+        </Text>
         <TouchableOpacity style={styles.refreshBtn} onPress={() => load(true)} activeOpacity={0.7}>
           <Ionicons name="refresh" size={14} color={Colors.primary} />
           <Text style={styles.refreshText}>{t.analysis.retry}</Text>
@@ -203,5 +205,6 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 12,
     color: Colors.wilting,
+    lineHeight: 18,
   },
 });

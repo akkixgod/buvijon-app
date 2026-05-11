@@ -21,14 +21,38 @@ export interface AppClassification {
   reasoning?: string;
 }
 
+function friendlyAiError(message?: string): string {
+  const text = message ?? '';
+  const lower = text.toLowerCase();
+  if (
+    lower.includes('429') ||
+    lower.includes('quota') ||
+    lower.includes('resource_exhausted') ||
+    lower.includes('rate limit')
+  ) {
+    return 'AI tahlil limiti tugadi. Iltimos, birozdan keyin qayta urinib ko‘ring.';
+  }
+  if (lower.includes('network') || lower.includes('fetch')) {
+    return 'AI tahlilga ulanishda muammo bor. Internetni tekshirib, qayta urinib ko‘ring.';
+  }
+  return 'AI tahlilni hozircha olish imkoni bo‘lmadi. Keyinroq qayta urinib ko‘ring.';
+}
+
+async function getFunctionErrorMessage(error: any): Promise<string> {
+  const body = await error?.context?.json?.().catch(() => null);
+  if (typeof body?.error === 'string') return body.error;
+  if (typeof body?.message === 'string') return body.message;
+  if (typeof error?.message === 'string') return error.message;
+  return '';
+}
+
 export const AiService = {
   async getChildInsight(childId: string, force = false): Promise<ChildInsight> {
     const { data, error } = await supabase.functions.invoke('generate-child-insight', {
       body: { child_id: childId, force },
     });
     if (error) {
-      const body = await (error as any).context?.json?.().catch(() => null);
-      throw new Error(body?.error || error.message);
+      throw new Error(friendlyAiError(await getFunctionErrorMessage(error)));
     }
     if (!data || typeof data.summary !== 'string') {
       throw new Error('Invalid response from insight service');
@@ -44,8 +68,7 @@ export const AiService = {
       body: { app_names: filtered },
     });
     if (error) {
-      const body = await (error as any).context?.json?.().catch(() => null);
-      throw new Error(body?.error || error.message);
+      throw new Error(friendlyAiError(await getFunctionErrorMessage(error)));
     }
     return Array.isArray(data?.classifications) ? data.classifications : [];
   },

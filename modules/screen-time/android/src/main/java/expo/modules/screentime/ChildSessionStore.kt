@@ -24,6 +24,7 @@ object ChildSessionStore {
   private const val PREFS = "buvijon_child_sessions"
   private const val KEY_ACTIVE_CHILD = "active_child_id"
   private const val USAGE_PREFIX = "usage:"
+  private const val LAUNCH_PREFIX = "launch:"
 
   private fun prefs(context: Context): SharedPreferences =
     context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -43,6 +44,13 @@ object ChildSessionStore {
     val p = prefs(context)
     val current = p.getLong(key, 0L)
     p.edit().putLong(key, current + deltaMs).apply()
+  }
+
+  fun incrementLaunch(context: Context, childId: String, packageName: String) {
+    val key = launchKey(childId, packageName, todayKey())
+    val p = prefs(context)
+    val current = p.getInt(key, 0)
+    p.edit().putInt(key, current + 1).apply()
   }
 
   /**
@@ -77,6 +85,25 @@ object ChildSessionStore {
     return result
   }
 
+  fun getLaunchesForChild(context: Context, childId: String, fromMs: Long, toMs: Long): Map<String, Int> {
+    val p = prefs(context)
+    val days = dateKeysBetween(fromMs, toMs)
+    val result = HashMap<String, Int>()
+    val prefix = "$LAUNCH_PREFIX$childId:"
+    for ((k, v) in p.all) {
+      if (!k.startsWith(prefix) || v !is Int) continue
+      // launch:{childId}:{pkg}:{date}
+      val afterChild = k.removePrefix(prefix)
+      val lastColon = afterChild.lastIndexOf(':')
+      if (lastColon < 0) continue
+      val pkg = afterChild.substring(0, lastColon)
+      val date = afterChild.substring(lastColon + 1)
+      if (date !in days) continue
+      result[pkg] = (result[pkg] ?: 0) + v
+    }
+    return result
+  }
+
   fun getDailyTotalMinutes(context: Context, childId: String, dateKey: String = todayKey()): Int {
     val p = prefs(context)
     val prefix = "$USAGE_PREFIX$childId:"
@@ -92,6 +119,9 @@ object ChildSessionStore {
 
   private fun usageKey(childId: String, pkg: String, dateKey: String) =
     "$USAGE_PREFIX$childId:$pkg:$dateKey"
+
+  private fun launchKey(childId: String, pkg: String, dateKey: String) =
+    "$LAUNCH_PREFIX$childId:$pkg:$dateKey"
 
   private fun todayKey(): String = dateFormat().format(Date())
 

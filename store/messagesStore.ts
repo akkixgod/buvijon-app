@@ -2,6 +2,15 @@ import { create } from 'zustand';
 import { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { SearchService } from '@/services/searchService';
+import {
+  loadCachedMessages,
+  loadCachedRooms,
+  loadOutbox,
+  PendingOutboxItem,
+  saveCachedMessages,
+  saveCachedRooms,
+  saveOutbox,
+} from '@/services/chatPersistence';
 
 // ============================================================================
 // TYPES
@@ -49,6 +58,7 @@ export interface ChatMessage {
   createdAt: string;
   isRead: boolean;
   readBy: string[];
+  localStatus?: 'pending' | 'failed' | 'sent';
 }
 
 export interface FamilyRequest {
@@ -94,8 +104,11 @@ export interface MessagesState {
 
   // Chat Data
   chatRooms: ChatRoom[];
+  messagesByRoom: Record<string, ChatMessage[]>;
+  outbox: PendingOutboxItem[];
   activeChatRoomId: string | null;
   isLoadingMessages: boolean;
+  isHydratingCache: boolean;
   chatError: string | null;
 
   // Real-time subscriptions
@@ -122,9 +135,14 @@ export interface MessagesState {
   loadFamilyRanking: (familyTreeId: string, perspectiveChildId?: string) => Promise<void>;
   setPerspectiveChild: (childId: string | null) => void;
   loadChatRooms: (familyTreeId: string) => Promise<void>;
+  hydrateChatCache: (familyTreeId: string) => Promise<void>;
+  clearChatRooms: () => void;
+  getCachedMessages: (roomId: string) => ChatMessage[];
   setActiveChatRoom: (roomId: string | null) => void;
   loadMessages: (roomId: string, limit?: number) => Promise<ChatMessage[]>;
   sendMessage: (roomId: string, content: string, messageType?: string, imageUrl?: string) => Promise<void>;
+  retryFailedMessage: (tempId: string) => Promise<void>;
+  flushOutbox: () => Promise<void>;
   markAsRead: (roomId: string) => Promise<void>;
   joinFamilyTree: (inviteCode: string) => Promise<void>;
   createDirectChat: (parentId: string) => Promise<string>;
@@ -158,6 +176,23 @@ export interface MessagesState {
   cleanup: () => void;
 }
 
+function rowToChatMessage(msg: any): ChatMessage {
+  return {
+    id: msg.id,
+    chatRoomId: msg.chat_room_id,
+    senderId: msg.sender_id,
+    senderName: msg.sender?.name,
+    messageType: msg.message_type,
+    content: msg.content,
+    imageUrl: msg.image_url,
+    replyToId: msg.reply_to_id,
+    createdAt: msg.created_at,
+    isRead: msg.is_read,
+    readBy: msg.read_by || [],
+    localStatus: 'sent',
+  };
+}
+
 // ============================================================================
 // ZUSTAND STORE
 // ============================================================================
@@ -170,8 +205,11 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
   rankingError: null,
 
   chatRooms: [],
+  messagesByRoom: {},
+  outbox: [],
   activeChatRoomId: null,
   isLoadingMessages: false,
+  isHydratingCache: false,
   chatError: null,
 
   rankingSubscription: null,
@@ -260,8 +298,36 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
     // This should be called from a component that has access to the current familyTreeId
   },
 
+  hydrateChatCache: async (familyTreeId: string) => {
+    if (!familyTreeId) return;
+    set({ isHydratingCache: true });
+    try {
+      const [rooms, outbox] = await Promise.all([
+        loadCachedRooms(familyTreeId),
+        loadOutbox(),
+      ]);
+      if (rooms.length > 0) {
+        set({ chatRooms: rooms });
+      }
+      set({ outbox });
+    } finally {
+      set({ isHydratingCache: false });
+    }
+  },
+
   // Load Chat Rooms
   loadChatRooms: async (familyTreeId: string) => {
+    if (!familyTreeId) {
+      set({ chatRooms: [], isLoadingMessages: false, chatError: null });
+      get().unsubscribeChatUpdates();
+      return;
+    }
+
+    const cached = await loadCachedRooms(familyTreeId);
+    if (cached.length > 0) {
+      set({ chatRooms: cached });
+    }
+
     set({ isLoadingMessages: true, chatError: null });
 
     try {
@@ -328,6 +394,7 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
         chatRooms,
         isLoadingMessages: false
       });
+      saveCachedRooms(familyTreeId, chatRooms).catch(() => {});
 
       // Setup chat subscription
       get().setupChatSubscription(familyTreeId);
@@ -341,6 +408,13 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
     }
   },
 
+  clearChatRooms: () => {
+    set({ chatRooms: [], messagesByRoom: {}, activeChatRoomId: null, chatError: null, isLoadingMessages: false });
+    get().unsubscribeChatUpdates();
+  },
+
+  getCachedMessages: (roomId: string) => get().messagesByRoom[roomId] ?? [],
+
   // Set Active Chat Room
   setActiveChatRoom: (roomId: string | null) => {
     set({ activeChatRoomId: roomId });
@@ -353,6 +427,16 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
   // Load Messages for a specific room
   loadMessages: async (roomId: string, limit: number = 50) => {
     try {
+      const cached = await loadCachedMessages(roomId);
+      if (cached.length > 0) {
+        set(state => ({
+          messagesByRoom: {
+            ...state.messagesByRoom,
+            [roomId]: cached,
+          },
+        }));
+      }
+
       const { data, error } = await supabase
         .from('chat_messages')
         .select(`
@@ -365,35 +449,56 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
 
       if (error) throw error;
 
-      const messages: ChatMessage[] = (data || []).map((msg: any) => ({
-        id: msg.id,
-        chatRoomId: msg.chat_room_id,
-        senderId: msg.sender_id,
-        senderName: msg.sender?.name,
-        messageType: msg.message_type,
-        content: msg.content,
-        imageUrl: msg.image_url,
-        replyToId: msg.reply_to_id,
-        createdAt: msg.created_at,
-        isRead: msg.is_read,
-        readBy: msg.read_by || []
+      const messages: ChatMessage[] = (data || []).map((msg: any) => rowToChatMessage(msg)).reverse();
+      set(state => ({
+        messagesByRoom: {
+          ...state.messagesByRoom,
+          [roomId]: messages,
+        },
       }));
+      saveCachedMessages(roomId, messages).catch(() => {});
 
-      return messages.reverse();
+      return messages;
 
     } catch (error: any) {
       console.error('Error loading messages:', error);
-      throw error;
+      return get().messagesByRoom[roomId] ?? [];
     }
   },
 
   // Send Message
   sendMessage: async (roomId: string, content: string, messageType: string = 'text', imageUrl?: string) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
+    const tempId = `temp-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
 
-      const { error } = await supabase
+    const optimistic: ChatMessage = {
+      id: tempId,
+      chatRoomId: roomId,
+      senderId: user.id,
+      messageType: (messageType as ChatMessage['messageType']) ?? 'text',
+      content,
+      imageUrl,
+      createdAt: new Date().toISOString(),
+      isRead: true,
+      readBy: [],
+      localStatus: 'pending',
+    };
+
+    set(state => {
+      const prev = state.messagesByRoom[roomId] ?? [];
+      const next = [...prev, optimistic];
+      saveCachedMessages(roomId, next).catch(() => {});
+      return {
+        messagesByRoom: {
+          ...state.messagesByRoom,
+          [roomId]: next,
+        },
+      };
+    });
+
+    try {
+      const { data: inserted, error } = await supabase
         .from('chat_messages')
         .insert({
           chat_room_id: roomId,
@@ -401,13 +506,80 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
           message_type: messageType,
           content,
           image_url: imageUrl
-        });
+        })
+        .select('*')
+        .single();
 
       if (error) throw error;
+      const saved = rowToChatMessage(inserted);
+      set(state => {
+        const prev = state.messagesByRoom[roomId] ?? [];
+        const next = prev.map(m => (m.id === tempId ? saved : m));
+        saveCachedMessages(roomId, next).catch(() => {});
+        return {
+          messagesByRoom: {
+            ...state.messagesByRoom,
+            [roomId]: next,
+          },
+        };
+      });
 
     } catch (error: any) {
       console.error('Error sending message:', error);
+      const failed: PendingOutboxItem = {
+        tempId,
+        roomId,
+        content,
+        messageType,
+        imageUrl,
+        createdAt: optimistic.createdAt,
+        retries: 0,
+      };
+      set(state => {
+        const prevMessages = state.messagesByRoom[roomId] ?? [];
+        const nextMessages = prevMessages.map(m => (
+          m.id === tempId ? { ...m, localStatus: 'failed' as const } : m
+        ));
+        const nextOutbox = [...state.outbox.filter(i => i.tempId !== tempId), failed];
+        saveCachedMessages(roomId, nextMessages).catch(() => {});
+        saveOutbox(nextOutbox).catch(() => {});
+        return {
+          messagesByRoom: {
+            ...state.messagesByRoom,
+            [roomId]: nextMessages,
+          },
+          outbox: nextOutbox,
+        };
+      });
       throw error;
+    }
+  },
+
+  retryFailedMessage: async (tempId: string) => {
+    const item = get().outbox.find(o => o.tempId === tempId);
+    if (!item) return;
+    await get().sendMessage(item.roomId, item.content, item.messageType, item.imageUrl);
+    set(state => {
+      const nextOutbox = state.outbox.filter(o => o.tempId !== tempId);
+      saveOutbox(nextOutbox).catch(() => {});
+      return { outbox: nextOutbox };
+    });
+  },
+
+  flushOutbox: async () => {
+    const current = [...get().outbox];
+    for (const item of current) {
+      try {
+        await get().retryFailedMessage(item.tempId);
+      } catch {
+        set(state => {
+          const nextOutbox = state.outbox.map(o => (
+            o.tempId === item.tempId ? { ...o, retries: o.retries + 1 } : o
+          ));
+          saveOutbox(nextOutbox).catch(() => {});
+          return { outbox: nextOutbox };
+        });
+      }
     }
   },
 
@@ -901,6 +1073,8 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
 
   // Setup Request Subscription
   setupRequestSubscription: (familyTreeId: string) => {
+    get().unsubscribeRequestUpdates();
+
     const channel = supabase
       .channel(`family_requests:${familyTreeId}`)
       .on(
@@ -935,6 +1109,8 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
 
   // Setup Ranking Subscription
   setupRankingSubscription: (familyTreeId: string) => {
+    get().unsubscribeRankingUpdates();
+
     const channel = supabase
       .channel(`family_ranking:${familyTreeId}`)
       .on(
@@ -960,6 +1136,8 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
 
   // Setup Chat Subscription
   setupChatSubscription: (familyTreeId: string) => {
+    get().unsubscribeChatUpdates();
+
     const channel = supabase
       .channel(`family_chat:${familyTreeId}`)
       .on(
@@ -987,7 +1165,8 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
               replyToId: payload.new.reply_to_id,
               createdAt: payload.new.created_at,
               isRead: payload.new.is_read,
-              readBy: payload.new.read_by || []
+              readBy: payload.new.read_by || [],
+              localStatus: 'sent',
             };
 
             // Update room's last message and increment unread count
@@ -1001,6 +1180,19 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
                     }
                   : room
               )
+            });
+            set(state => {
+              const roomMessages = state.messagesByRoom[newMessage.chatRoomId] ?? [];
+              if (roomMessages.some(m => m.id === newMessage.id)) return state;
+              const nextMessages = [...roomMessages, newMessage];
+              saveCachedMessages(newMessage.chatRoomId, nextMessages).catch(() => {});
+              return {
+                ...state,
+                messagesByRoom: {
+                  ...state.messagesByRoom,
+                  [newMessage.chatRoomId]: nextMessages,
+                },
+              };
             });
           }
         }

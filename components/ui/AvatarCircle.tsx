@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, Image, StyleSheet, ViewStyle } from 'react-native';
+import { View, Text, Image, StyleSheet, ViewStyle, ImageStyle } from 'react-native';
 import { Colors } from '@/constants/colors';
 import { FontWeight } from '@/constants/theme';
 
@@ -7,7 +7,7 @@ interface Props {
   uri?: string;
   name: string;
   size?: number;
-  style?: ViewStyle;
+  style?: ViewStyle | ImageStyle;
 }
 
 export function AvatarCircle({ uri, name, size = 44, style }: Props) {
@@ -20,7 +20,7 @@ export function AvatarCircle({ uri, name, size = 44, style }: Props) {
     return (
       <Image
         source={{ uri }}
-        style={[{ width: size, height: size, borderRadius: radius }, style]}
+        style={[{ width: size, height: size, borderRadius: radius }, style as ImageStyle]}
         resizeMode="cover"
         onError={() => setImgError(true)}
       />

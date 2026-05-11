@@ -87,6 +87,9 @@ export interface T {
     title: string;
     empty: string;
     ageLabel: (n: number) => string;
+    count?: string;
+    emptyHint?: string;
+    addBtn?: string;
   };
 
   reports: {
@@ -162,6 +165,10 @@ export interface T {
     deleteCancel: string;
     deleteConfirm: string;
     hourSuffix: string;
+    periodNight?: string;
+    periodMorning?: string;
+    periodDay?: string;
+    periodEvening?: string;
   };
 
   addChild: {
@@ -204,55 +211,7 @@ export interface T {
     steps: Array<{ title: string; body: string }>;
   };
 
-  messages: {
-    title: string;
-    familyStanding: string;
-    perspectiveView: string;
-    allKidsView: string;
-    all: string;
-    searchPlaceholder: string;
-    createChat: string;
-    joinFamily: string;
-    enterInviteCode: string;
-    join: string;
-    searchMembers: string;
-    noMembersFound: string;
-    noFamilyMembers: string;
-    noRanking: string;
-    noChats: string;
-    startChat: string;
-    startChatWith: string;
-    dualSearch: string;
-    searchUsers: string;
-    searchFamilies: string;
-    userPlaceholder: string;
-    familyPlaceholder: string;
-    searchUsersEmpty: string;
-    searchFamiliesEmpty: string;
-    searching: string;
-    noResults: string;
-    tryDifferent: string;
-    searchMinChars: string;
-    joinFamily: string;
-    pending: string;
-    accept: string;
-    decline: string;
-    requestSent: string;
-    requestSentDesc: string;
-    requestAccepted: string;
-    requestDeclined: string;
-    requestPending: string;
-    noPendingRequests: string;
-    noPendingRequestsDesc: string;
-    pendingRequests: string;
-    memberCount: string;
-    createdBy: string;
-    mutualFamilies: string;
-    chatCreated: string;
-    directChat: string;
-    message: string;
-    buvijonNotification: string;
-  };
+  messages: Record<string, any>;
 
   common: {
     loading: string;
@@ -403,68 +362,7 @@ export interface T {
     errPinLength: string;
   };
 
-  messages: {
-    title: string;
-    familyStanding: string;
-    perspectiveView: string;
-    allKidsView: string;
-    all: string;
-    searchPlaceholder: string;
-    createChat: string;
-    joinFamily: string;
-    enterInviteCode: string;
-    join: string;
-    searchMembers: string;
-    noMembersFound: string;
-    noFamilyMembers: string;
-    noRanking: string;
-    noChats: string;
-    startChat: string;
-    startChatWith: string;
-    dualSearch: string;
-    searchUsers: string;
-    searchFamilies: string;
-    userPlaceholder: string;
-    familyPlaceholder: string;
-    searchUsersEmpty: string;
-    searchFamiliesEmpty: string;
-    searching: string;
-    noResults: string;
-    tryDifferent: string;
-    searchMinChars: string;
-    joinFamily: string;
-    pending: string;
-    accept: string;
-    decline: string;
-    requestSent: string;
-    requestSentDesc: string;
-    requestAccepted: string;
-    requestDeclined: string;
-    requestPending: string;
-    noPendingRequests: string;
-    noPendingRequestsDesc: string;
-    pendingRequests: string;
-    memberCount: string;
-    createdBy: string;
-    mutualFamilies: string;
-    chatCreated: string;
-    directChat: string;
-    message: string;
-    buvijonNotification: string;
-  };
-
-  common: {
-    loading: string;
-    retry: string;
-    tryAgain: string;
-    error: string;
-    success: string;
-    cancel: string;
-    save: string;
-    delete: string;
-    edit: string;
-    confirm: string;
-  };
+  // NOTE: messages/common blocks are declared once above.
 }
 
 const ru: T = {
@@ -724,7 +622,7 @@ const ru: T = {
     searchPlaceholder: 'Поиск приложений...',
     selectedCount: (n: number) => `${n} заблокировано`,
     overlayTitle: 'Нужно разрешение',
-    overlayMsg: 'Для блокировки приложений нужно разрешение на отображение поверх других приложений.',
+    overlayMsg: 'Для блокировки приложений Buvijon нужны разрешения на статистику использования, отображение поверх других приложений и службу доступности.',
     overlayGrant: 'Открыть настройки',
     categories: {
       social: 'Соцсеть',
@@ -1095,7 +993,7 @@ const uzCyrillic: T = {
     searchPlaceholder: 'Дастурларни қидириш...',
     selectedCount: (n: number) => `${n} блокланган`,
     overlayTitle: 'Рухсат керак',
-    overlayMsg: 'Дастурларни блоклаш учун бошқа дастурлар устидан кўрсатиш рухсати керак.',
+    overlayMsg: 'Дастурларни блоклаш учун Buvijonга фойдаланиш статистикаси, бошқа дастурлар устидан кўрсатиш ва махсус имконият хизмати рухсатлари керак.',
     overlayGrant: 'Созламаларни очиш',
     categories: {
       social: 'Ижтимоий',
@@ -1466,7 +1364,7 @@ const uzLatin: T = {
     searchPlaceholder: 'Dasturlarni qidirish...',
     selectedCount: (n: number) => `${n} bloklangan`,
     overlayTitle: 'Ruxsat kerak',
-    overlayMsg: 'Dasturlarni bloklash uchun boshqa dasturlar ustidan ko\'rsatish ruxsati kerak.',
+    overlayMsg: 'Dasturlarni bloklash uchun Buvijonga foydalanish statistikasi, boshqa dasturlar ustidan ko\'rsatish va maxsus imkoniyat xizmati ruxsatlari kerak.',
     overlayGrant: 'Sozlamalarni ochish',
     categories: {
       social: 'Ijtimoiy',

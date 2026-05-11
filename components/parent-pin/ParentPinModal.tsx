@@ -24,18 +24,22 @@ export function ParentPinModal({ visible, onClose, onSuccess }: ParentPinModalPr
   const [showSetup, setShowSetup] = useState(false);
 
   const {
-    isUnlocked,
     isBiometricEnabled,
+    autoLockMs,
+    loadSecurityState,
+    getRemainingCooldownMs,
     unlockWithPin,
     unlockWithBiometric,
     setupPin,
     hasSetupPin,
     setBiometricEnabled,
+    setAutoLockMs,
   } = useParentPinStore();
 
   // Check if PIN is already set up
   useEffect(() => {
     async function check() {
+      await loadSecurityState();
       const hasPin = await hasSetupPin();
       setShowSetup(!hasPin);
     }
@@ -78,6 +82,11 @@ export function ParentPinModal({ visible, onClose, onSuccess }: ParentPinModalPr
   };
 
   const handlePinSubmit = async () => {
+    const cooldown = getRemainingCooldownMs();
+    if (cooldown > 0) {
+      setError(`${t.parentPin.wrongPin}. Wait ${Math.ceil(cooldown / 1000)}s`);
+      return;
+    }
     if (pin.length !== 4) {
       setError(t.parentPin.errPinLength);
       return;
@@ -129,6 +138,15 @@ export function ParentPinModal({ visible, onClose, onSuccess }: ParentPinModalPr
     setBiometricEnabled(newState);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
+
+  const handleAutoLockCycle = async () => {
+    const options = [30_000, 60_000, 120_000, 300_000];
+    const idx = options.findIndex(v => v === autoLockMs);
+    const next = options[(idx + 1) % options.length];
+    await setAutoLockMs(next);
+  };
+
+  const autoLockLabel = `${Math.round(autoLockMs / 1000)}s`;
 
   const handleBack = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -221,15 +239,21 @@ export function ParentPinModal({ visible, onClose, onSuccess }: ParentPinModalPr
             </View>
 
             {!showSetup && (
-              <TouchableOpacity
-                style={styles.biometricToggle}
-                onPress={handleBiometricToggle}
-              >
-                <View style={styles.biometricToggleTrack}>
-                  <View style={[styles.biometricToggleKnob, isBiometricEnabled && styles.biometricToggleKnobOn]} />
-                </View>
-                <Text style={styles.biometricToggleText}>{t.parentPin.biometricToggle}</Text>
-              </TouchableOpacity>
+              <>
+                <TouchableOpacity
+                  style={styles.biometricToggle}
+                  onPress={handleBiometricToggle}
+                >
+                  <View style={styles.biometricToggleTrack}>
+                    <View style={[styles.biometricToggleKnob, isBiometricEnabled && styles.biometricToggleKnobOn]} />
+                  </View>
+                  <Text style={styles.biometricToggleText}>{t.parentPin.biometricToggle}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.autolockBtn} onPress={handleAutoLockCycle}>
+                  <Ionicons name="timer-outline" size={18} color={Colors.primary} />
+                  <Text style={styles.autolockBtnText}>Auto-lock: {autoLockLabel}</Text>
+                </TouchableOpacity>
+              </>
             )}
           </View>
         </TouchableOpacity>
@@ -382,5 +406,17 @@ const styles = StyleSheet.create({
   biometricToggleText: {
     fontSize: FontSize.sm,
     color: Colors.textMuted,
+  },
+  autolockBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginTop: Spacing.xs,
+    paddingVertical: Spacing.sm,
+  },
+  autolockBtnText: {
+    fontSize: FontSize.sm,
+    color: Colors.textPrimary,
+    fontWeight: FontWeight.medium,
   },
 });

@@ -13,6 +13,21 @@ export interface InstalledApp {
   appName: string;
 }
 
+export interface BlockerChildConfig {
+  childId: string;
+  childName: string;
+  childPin: string;
+  dailyLimitMinutes: number;
+  blockedPackages: string[];
+}
+
+export interface BlockingPermissionStatus {
+  usageAccess: boolean;
+  overlay: boolean;
+  accessibility: boolean;
+  batteryOptimizationBypassed: boolean;
+}
+
 const NativeModule = requireNativeModule('ScreenTime');
 
 /**
@@ -93,6 +108,50 @@ export function hasOverlayPermission(): boolean {
  */
 export function requestOverlayPermission(): boolean {
   return NativeModule.requestOverlayPermission();
+}
+
+/**
+ * Check whether Buvijon's AccessibilityService is enabled.
+ */
+export function hasAccessibilityPermission(): boolean {
+  return NativeModule.hasAccessibilityPermission();
+}
+
+/**
+ * Open Android Accessibility Settings so the user can enable Buvijon.
+ */
+export function requestAccessibilityPermission(): boolean {
+  return NativeModule.requestAccessibilityPermission();
+}
+
+/**
+ * Check whether Android battery optimization is bypassed for Buvijon.
+ */
+export function hasBatteryOptimizationBypass(): boolean {
+  return NativeModule.hasBatteryOptimizationBypass();
+}
+
+/**
+ * Open Android battery optimization settings.
+ */
+export function requestBatteryOptimizationSettings(): boolean {
+  return NativeModule.requestBatteryOptimizationSettings();
+}
+
+/**
+ * Persist all child blocker configs and start/stop the native blocker service.
+ */
+export function syncBlockerConfigs(configs: BlockerChildConfig[]): boolean {
+  return NativeModule.syncBlockerConfigs(configs);
+}
+
+export function getBlockingPermissionStatus(): BlockingPermissionStatus {
+  return {
+    usageAccess: hasPermission(),
+    overlay: hasOverlayPermission(),
+    accessibility: hasAccessibilityPermission(),
+    batteryOptimizationBypassed: hasBatteryOptimizationBypass(),
+  };
 }
 
 /**

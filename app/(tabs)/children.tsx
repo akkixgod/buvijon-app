@@ -25,21 +25,21 @@ export default function ChildrenScreen() {
   const children = useChildrenStore(s => s.children);
   const [showAdd, setShowAdd] = useState(false);
   const [showPinModal, setShowPinModal] = useState(false);
-  const { isUnlocked, lock } = useParentPinStore();
+  const { isUnlocked, lock, autoLockMs } = useParentPinStore();
 
   useEffect(() => {
     let lockTimer: NodeJS.Timeout | null = null;
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       if (nextAppState === 'active' && isUnlocked) {
         if (lockTimer) clearTimeout(lockTimer);
-        lockTimer = setTimeout(() => lock(), 60 * 1000);
+        lockTimer = setTimeout(() => lock(), autoLockMs);
       }
     });
     return () => {
       subscription.remove();
       if (lockTimer) clearTimeout(lockTimer);
     };
-  }, [isUnlocked, lock]);
+  }, [autoLockMs, isUnlocked, lock]);
 
   const handleChildPress = (child: Child) => {
     if (!isUnlocked) setShowPinModal(true);

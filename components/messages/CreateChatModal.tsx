@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, Modal, TouchableOpacity,
-  TextInput, ScrollView, ActivityIndicator, FlatList,
-  useSafeAreaInsets
+  TextInput, ScrollView, ActivityIndicator, FlatList
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/colors';
 import { Spacing, Radius, FontSize, FontWeight } from '@/constants/theme';
@@ -29,7 +29,7 @@ const CreateChatModal: React.FC<CreateChatModalProps> = ({
   onCreateChat,
   familyMembers = []
 }) => {
-  const { t } = useTranslation();
+  const t = useTranslation();
   const insets = useSafeAreaInsets();
 
   const [searchQuery, setSearchQuery] = useState('');

@@ -90,7 +90,7 @@ const splashStyles = StyleSheet.create({
 
 export default function RootLayout() {
   const { loadSession, isLoading, isAuthenticated } = useAuthStore();
-  const { loadChildren, loadCachedChildren } = useChildrenStore();
+  const { loadChildren, loadCachedChildren, syncBlockerConfigsToNative } = useChildrenStore();
   const { loadPosts, loadCachedPosts } = usePostsStore();
   const { loadSettings } = useSettingsStore();
   const { load: loadOnboarding } = useOnboardingStore();
@@ -98,6 +98,7 @@ export default function RootLayout() {
   useEffect(() => {
     async function init() {
       await Promise.all([loadSession(), loadSettings(), loadOnboarding(), loadCachedPosts(), loadCachedChildren()]);
+      syncBlockerConfigsToNative();
       await Promise.all([loadChildren(), loadPosts()]);
     }
     init();
@@ -108,6 +109,7 @@ export default function RootLayout() {
     if (isAuthenticated) {
       loadChildren();
       loadPosts();
+      syncBlockerConfigsToNative();
     }
   }, [isAuthenticated]);
 

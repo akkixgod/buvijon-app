@@ -145,7 +145,10 @@ async function getMutualFamilies(userId1: string, userId2: string): Promise<stri
       .eq('parent_id', userId2)
       .in('family_tree_id', familyIds);
 
-    return (user2Families || []).map(f => f.family_trees?.name || 'Unknown');
+    return (user2Families || []).map(f => {
+      const tree = Array.isArray(f.family_trees) ? f.family_trees[0] : f.family_trees;
+      return tree?.name || 'Unknown';
+    });
 
   } catch (error) {
     console.error('Error getting mutual families:', error);

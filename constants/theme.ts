@@ -8,6 +8,11 @@ export const Spacing = {
   xl: 32,
   xxl: 48,
   label: 12, // gap between label and card
+  // Legacy aliases kept for compatibility
+  xsmall: 4,
+  small: 8,
+  medium: 16,
+  large: 20,
 };
 
 export const Radius = {
@@ -16,9 +21,15 @@ export const Radius = {
   lg: 16,
   xl: 20,
   full: 9999,
+  // Legacy aliases kept for compatibility
+  xsmall: 8,
+  small: 8,
+  medium: 12,
+  large: 16,
 };
 
 export const FontSize = {
+  xxs: 10,
   xs: 11,
   sm: 13,
   md: 15,
@@ -35,6 +46,14 @@ export const FontWeight = {
   bold:     '700' as const,
   heavy:    '800' as const,
 };
+
+export const Typography = {
+  h3: { fontSize: FontSize.lg, fontWeight: FontWeight.semibold } as const,
+  body: { fontSize: FontSize.md, fontWeight: FontWeight.regular } as const,
+  small: { fontSize: FontSize.sm, fontWeight: FontWeight.regular } as const,
+};
+
+export { Colors };
 
 export const TAB_BAR_HEIGHT = 56;
 

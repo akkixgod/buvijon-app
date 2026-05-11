@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform, NativeModules, NativeEventEmitter } from 'react-native';
+import React, { useState, useMemo } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,6 +13,7 @@ import { useParentPinStore } from '@/store/parentPinStore';
 import { Colors, FlowerColors } from '@/constants/colors';
 import { Spacing, Radius, FontSize, FontWeight } from '@/constants/theme';
 import { getFlowerState, getUsagePercent, getRemainingMinutes } from '@/utils/screenTime';
+import { getMissingBlockingPermissions } from '@/utils/blockingPermissions';
 import { useTranslation, formatDurationT } from '@/i18n';
 import { useScreenTime } from '@/hooks/useScreenTime';
 
@@ -21,14 +22,6 @@ try {
   ScreenTime = require('screen-time');
 } catch {
   ScreenTime = null;
-}
-
-// Event emitter for native module events
-let eventEmitter: any = null;
-try {
-  eventEmitter = new NativeEventEmitter(NativeModules.ScreenTime);
-} catch {
-  eventEmitter = null;
 }
 
 // Map well-known package names to icons/colors
@@ -76,42 +69,6 @@ export default function ChildDetailScreen() {
 
   // Use real screen time from native module when available, otherwise 0
   const usedMinutes = screenTime.hasPermission ? screenTime.totalMinutes : 0;
-  const blockerStarted = useRef(false);
-
-  // Auto-start/stop blocker when limit is reached
-  useEffect(() => {
-    if (Platform.OS !== 'android' || !ScreenTime || !child) return;
-    const hasBlocked = child.blockedApps.length > 0;
-    const overLimit = usedMinutes >= child.dailyLimitMinutes;
-
-    if (hasBlocked && overLimit && !blockerStarted.current) {
-      if (ScreenTime.hasOverlayPermission()) {
-        ScreenTime.startAppBlocker(child.blockedApps, child.name, child.id, child.pin);
-        blockerStarted.current = true;
-      } else {
-        Alert.alert(
-          'Ruxsat kerak',
-          'Bloklash ishlashi uchun "Boshqa ilovalar ustidan ko\'rsatish" ruxsatini bering.',
-          [
-            { text: 'Bekor qilish', style: 'cancel' },
-            { text: 'Sozlamalarga o\'tish', onPress: () => ScreenTime?.requestOverlayPermission() },
-          ]
-        );
-      }
-    } else if (!overLimit && blockerStarted.current) {
-      ScreenTime.stopAppBlocker();
-      blockerStarted.current = false;
-    }
-  }, [usedMinutes, child?.blockedApps, child?.dailyLimitMinutes, child?.id, child?.pin]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (blockerStarted.current && ScreenTime) {
-        ScreenTime.stopAppBlocker();
-      }
-    };
-  }, []);
 
   const periodStats = useMemo(() => {
     if (!ScreenTime || !screenTime.hasPermission) return null;
@@ -316,13 +273,13 @@ export default function ChildDetailScreen() {
               label={t.childDetail.blockApps}
               badge={child.blockedApps.length > 0 ? `${child.blockedApps.length}` : undefined}
               onPress={() => {
-                if (Platform.OS === 'android' && ScreenTime && !ScreenTime.hasOverlayPermission()) {
+                if (Platform.OS === 'android' && ScreenTime && getMissingBlockingPermissions().length > 0) {
                   Alert.alert(
                     t.blockedApps.overlayTitle,
                     t.blockedApps.overlayMsg,
                     [
                       { text: t.childDetail.deleteCancel, style: 'cancel' },
-                      { text: t.blockedApps.overlayGrant, onPress: () => ScreenTime!.requestOverlayPermission() },
+                      { text: t.blockedApps.overlayGrant, onPress: () => router.push('/onboarding') },
                     ],
                   );
                   return;

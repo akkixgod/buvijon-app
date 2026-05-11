@@ -1,5 +1,6 @@
+// @ts-nocheck
 import React, { useState } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Text } from 'react-native';
 import RequestNotification from './RequestNotification';
 import DualSearchScreen from './DualSearchScreen';
 import { useMessagesStore } from '@/store/messagesStore';

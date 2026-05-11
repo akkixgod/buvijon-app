@@ -11,6 +11,7 @@ import { Colors } from '@/constants/colors';
 import { Radius, FontWeight } from '@/constants/theme';
 import { SCREEN_WIDTH, ms, fs } from '@/utils/responsive';
 import { useTranslation } from '@/i18n';
+import { useOnboardingStore } from '@/store/onboardingStore';
 
 const OTP_LENGTH = 6;
 
@@ -26,6 +27,7 @@ export default function OTPScreen() {
   const { email, name, username, mode } = useLocalSearchParams<{ email: string; name?: string; username?: string; mode: string }>();
   const verifyOtp = useAuthStore(s => s.verifyOtp);
   const sendOtp   = useAuthStore(s => s.sendOtp);
+  const hasCompletedPermissions = useOnboardingStore(s => s.hasCompletedPermissions);
 
   const [digits, setDigits]     = useState<string[]>(Array(OTP_LENGTH).fill(''));
   const [loading, setLoading]   = useState(false);
@@ -100,7 +102,7 @@ export default function OTPScreen() {
     if (result.ok) {
       // New registrations → onboarding (permission request), existing logins → directly to tabs
       if (mode === 'register') {
-        router.replace('/onboarding');
+        router.replace(hasCompletedPermissions ? '/(tabs)' : '/onboarding');
       } else {
         router.replace('/(tabs)');
       }

@@ -55,7 +55,12 @@ export default function GardenScreen() {
   // const deletePost = usePostsStore(s => s.deletePost);
   // const editPost = usePostsStore(s => s.editPost);
   // const archivePost = usePostsStore(s => s.archivePost);
-  const { hasSeenOnboarding, loaded: onboardingLoaded, complete: completeOnboarding } = useOnboardingStore();
+  const {
+    hasCompletedPermissions,
+    hasCompletedGardenTour,
+    loaded: onboardingLoaded,
+    completeGardenTour,
+  } = useOnboardingStore();
 
   const screenTime = useScreenTime();
   const realMinutes = screenTime.hasPermission ? screenTime.totalMinutes : 0;
@@ -115,14 +120,14 @@ export default function GardenScreen() {
   }, [t, insets]);
 
   const onHeaderLayout = useCallback(() => {
-    if (onboardingLoaded && !hasSeenOnboarding && !showOnboarding) {
+    if (onboardingLoaded && hasCompletedPermissions && !hasCompletedGardenTour && !showOnboarding) {
       setTimeout(async () => {
         const steps = await buildSteps();
         setOnboardingSteps(steps);
         setShowOnboarding(true);
       }, 400);
     }
-  }, [onboardingLoaded, hasSeenOnboarding, showOnboarding, buildSteps]);
+  }, [onboardingLoaded, hasCompletedPermissions, hasCompletedGardenTour, showOnboarding, buildSteps]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -271,7 +276,7 @@ export default function GardenScreen() {
       <OnboardingOverlay
         steps={onboardingSteps}
         visible={showOnboarding}
-        onComplete={() => { setShowOnboarding(false); completeOnboarding(); }}
+        onComplete={() => { setShowOnboarding(false); completeGardenTour(); }}
       />
     </SafeAreaView>
   );

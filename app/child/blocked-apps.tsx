@@ -12,6 +12,7 @@ import { Spacing, Radius, FontSize, FontWeight } from '@/constants/theme';
 import { useTranslation } from '@/i18n';
 import { useChildrenStore } from '@/store/childrenStore';
 import { AiService, AppClassification, RiskLevel } from '@/services/aiService';
+import { getMissingBlockingPermissions } from '@/utils/blockingPermissions';
 
 const RISK_COLOR: Record<RiskLevel, string> = {
   low: Colors.blooming,
@@ -150,6 +151,19 @@ export default function BlockedAppsScreen() {
     await updateChild(child.id, { blockedApps: Array.from(selected) });
     setSaving(false);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    if (Platform.OS === 'android' && selected.size > 0 && getMissingBlockingPermissions().length > 0) {
+      Alert.alert(
+        t.blockedApps.overlayTitle,
+        t.blockedApps.overlayMsg,
+        [
+          { text: t.childDetail.deleteCancel, style: 'cancel', onPress: () => router.back() },
+          { text: t.blockedApps.overlayGrant, onPress: () => router.replace('/onboarding') },
+        ],
+      );
+      return;
+    }
+
     router.back();
   };
 

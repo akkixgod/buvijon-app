@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="app_blocker_accessibility_description">Buvijon detects when selected apps are opened so it can show a block screen and calculate child screen time.</string>
+</resources>

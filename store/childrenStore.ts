@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
 import { Child, FlowerVariant } from '@/types';
+import type { BlockerChildConfig } from 'screen-time';
 
 let ScreenTime: typeof import('screen-time') | null = null;
 try {
@@ -29,6 +30,23 @@ interface ChildrenState {
   setActiveChildId: (id: string | null) => void;
   syncActiveChildFromNative: () => void;
   logoutActiveChild: () => void;
+  syncBlockerConfigsToNative: () => void;
+}
+
+function syncBlockerConfigs(children: Child[]) {
+  if (Platform.OS !== 'android' || !ScreenTime) return;
+  const configs: BlockerChildConfig[] = children
+    .filter(c => c.isActive && c.blockedApps.length > 0)
+    .map(c => ({
+      childId: c.id,
+      childName: c.name,
+      childPin: c.pin,
+      dailyLimitMinutes: c.dailyLimitMinutes,
+      blockedPackages: c.blockedApps,
+    }));
+  try {
+    ScreenTime.syncBlockerConfigs(configs);
+  } catch {}
 }
 
 function rowToChild(row: any): Child {
@@ -85,10 +103,7 @@ export const useChildrenStore = create<ChildrenState>((set, get) => ({
         const children = data.map(rowToChild);
         set({ children });
         AsyncStorage.setItem(CHILDREN_CACHE_KEY, JSON.stringify(children)).catch(() => {});
-        // Sync all child PINs to native blocker service after each load
-        if (Platform.OS === 'android' && ScreenTime) {
-          children.forEach(c => { try { ScreenTime!.setChildPin(c.id, c.pin); } catch {} });
-        }
+        syncBlockerConfigs(children);
       }
     } catch (_) {
     } finally {
@@ -120,10 +135,10 @@ export const useChildrenStore = create<ChildrenState>((set, get) => ({
 
     if (!error && inserted) {
       const child = rowToChild(inserted);
-      set(s => ({ children: [...s.children, child] }));
-      if (Platform.OS === 'android' && ScreenTime) {
-        try { ScreenTime.setChildPin(child.id, child.pin); } catch {}
-      }
+      const children = [...get().children, child];
+      set({ children });
+      AsyncStorage.setItem(CHILDREN_CACHE_KEY, JSON.stringify(children)).catch(() => {});
+      syncBlockerConfigs(children);
     }
   },
 
@@ -143,10 +158,10 @@ export const useChildrenStore = create<ChildrenState>((set, get) => ({
 
     const { error } = await supabase.from('children').update(updates).eq('id', id);
     if (!error) {
-      set(s => ({ children: s.children.map(c => c.id === id ? { ...c, ...data } : c) }));
-      if (data.pin && Platform.OS === 'android' && ScreenTime) {
-        try { ScreenTime.setChildPin(id, data.pin); } catch {}
-      }
+      const children = get().children.map(c => c.id === id ? { ...c, ...data } : c);
+      set({ children });
+      AsyncStorage.setItem(CHILDREN_CACHE_KEY, JSON.stringify(children)).catch(() => {});
+      syncBlockerConfigs(children);
     }
   },
 
@@ -157,7 +172,10 @@ export const useChildrenStore = create<ChildrenState>((set, get) => ({
       .update({ is_active: false })
       .eq('id', id);
     if (!error) {
-      set(s => ({ children: s.children.filter(c => c.id !== id) }));
+      const children = get().children.filter(c => c.id !== id);
+      set({ children });
+      AsyncStorage.setItem(CHILDREN_CACHE_KEY, JSON.stringify(children)).catch(() => {});
+      syncBlockerConfigs(children);
     }
   },
 
@@ -228,5 +246,9 @@ export const useChildrenStore = create<ChildrenState>((set, get) => ({
         // best-effort: state already cleared above
       }
     }
+  },
+
+  syncBlockerConfigsToNative: () => {
+    syncBlockerConfigs(get().children);
   },
 }));

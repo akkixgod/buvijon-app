@@ -30,14 +30,21 @@ export const Colors = {
   // Текст
   textPrimary: '#111111',
   textSecondary: '#333333',
+  textTertiary: '#6B7280',
   textMuted: '#888888',
   textLabel: '#AAAAAA',
   textOnDark: '#FFFFFF',
+  white: '#FFFFFF',
 
   // UI
   border: '#EEEEEE',
   borderLight: '#F0F0F0',
   shadow: 'rgba(0,0,0,0.06)',
+  card: '#FFFFFF',
+  error: '#EF4444',
+  disabled: '#D1D5DB',
+  gray: '#9CA3AF',
+  success: '#10B981',
 
   // Цветочные горшки (для SVG)
   soil: '#6B4226',

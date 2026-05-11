@@ -1,12 +1,12 @@
 import React from 'react';
-import { View, Image, Text, StyleSheet, ViewStyle } from 'react-native';
+import { View, Image, Text, StyleSheet, ViewStyle, ImageStyle } from 'react-native';
 import { Colors } from '@/constants/colors';
 
 interface AvatarProps {
   uri?: string | null;
   name?: string;
   size?: number;
-  style?: ViewStyle;
+  style?: ViewStyle | ImageStyle;
 }
 
 const PALETTE = [
@@ -34,7 +34,7 @@ export default function Avatar({ uri, name = '', size = 40, style }: AvatarProps
     return (
       <Image
         source={{ uri }}
-        style={[{ width: size, height: size, borderRadius: size / 2 }, style]}
+        style={[{ width: size, height: size, borderRadius: size / 2 }, style as ImageStyle]}
         resizeMode="cover"
       />
     );

@@ -8,7 +8,10 @@
     "ios": "npx expo start --ios",
     "web": "npx expo start --web",
     "update": "eas update --channel preview --message",
-    "postinstall": "node scripts/patch-native.js"
+    "postinstall": "node scripts/patch-native.js",
+    "e2e:build:android": "npx detox build --configuration android.emu.debug",
+    "e2e:test:android": "npx detox test --configuration android.emu.debug",
+    "e2e:test:smoke": "npx detox test --configuration android.emu.debug --testNamePattern smoke"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",

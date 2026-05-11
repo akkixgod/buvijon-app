@@ -44,6 +44,7 @@ export default function MessagesScreen() {
     chatError,
     loadFamilyRanking,
     loadChatRooms,
+    hydrateChatCache,
     setActiveChatRoom,
     setPerspectiveChild,
     createDirectChat
@@ -108,16 +109,6 @@ export default function MessagesScreen() {
     }
   }, [parent?.id]);
 
-  // Setup real-time subscriptions when familyTreeId is available
-  useEffect(() => {
-    if (familyTreeId) {
-      // Setup subscriptions
-      store.setupRankingSubscription(familyTreeId);
-      store.setupChatSubscription(familyTreeId);
-      store.setupRequestSubscription(familyTreeId);
-    }
-  }, [familyTreeId, store]);
-
   // Cleanup subscriptions on unmount
   useEffect(() => {
     return () => {
@@ -136,6 +127,7 @@ export default function MessagesScreen() {
       const treeId = await getFamilyTreeId(parent?.id || '');
       if (treeId) {
         setFamilyTreeId(treeId);
+        await hydrateChatCache(treeId).catch(() => {});
         await Promise.all([
           loadFamilyRanking(treeId, selectedPerspectiveChild || undefined),
           loadChatRooms(treeId)
@@ -144,7 +136,7 @@ export default function MessagesScreen() {
     } catch (error) {
       console.error('Error loading initial data:', error);
     }
-  }, [parent?.id, selectedPerspectiveChild, loadFamilyRanking, loadChatRooms]);
+  }, [parent?.id, selectedPerspectiveChild, loadFamilyRanking, loadChatRooms, hydrateChatCache]);
 
   const getFamilyTreeId = async (parentId: string): Promise<string | null> => {
     // Implementation to get family tree ID for the current parent

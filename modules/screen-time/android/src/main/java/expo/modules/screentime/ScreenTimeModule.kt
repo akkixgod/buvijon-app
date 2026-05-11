@@ -3,14 +3,17 @@ package expo.modules.screentime
 import android.app.AppOpsManager
 import android.app.usage.UsageStatsManager
 import android.content.BroadcastReceiver
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
 import android.os.Process
 import android.provider.Settings
+import android.text.TextUtils
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import java.util.Calendar
@@ -135,18 +138,84 @@ class ScreenTimeModule : Module() {
       }
     }
 
+    Function("hasAccessibilityPermission") {
+      val context = appContext.reactContext ?: return@Function false
+      isAccessibilityServiceEnabled(context)
+    }
+
+    Function("requestAccessibilityPermission") {
+      val context = appContext.reactContext ?: return@Function false
+      try {
+        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
+        true
+      } catch (e: Exception) {
+        false
+      }
+    }
+
+    Function("hasBatteryOptimizationBypass") {
+      val context = appContext.reactContext ?: return@Function false
+      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return@Function true
+      val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+      pm.isIgnoringBatteryOptimizations(context.packageName)
+    }
+
+    Function("requestBatteryOptimizationSettings") {
+      val context = appContext.reactContext ?: return@Function false
+      try {
+        val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
+        true
+      } catch (e: Exception) {
+        false
+      }
+    }
+
+    Function("syncBlockerConfigs") { configs: List<Map<String, Any?>> ->
+      val context = appContext.reactContext ?: return@Function false
+      try {
+        val parsed = configs.mapNotNull { raw ->
+          val childId = raw["childId"] as? String ?: return@mapNotNull null
+          val childName = raw["childName"] as? String ?: ""
+          val childPin = raw["childPin"] as? String ?: return@mapNotNull null
+          val dailyLimit = (raw["dailyLimitMinutes"] as? Number)?.toInt() ?: 60
+          val blocked = (raw["blockedPackages"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
+          if (childId.isBlank() || childPin.isBlank() || blocked.isEmpty()) return@mapNotNull null
+          BlockerChildConfig(childId, childName, childPin, dailyLimit, blocked)
+        }
+        BlockerConfigStore.saveConfigs(context, parsed)
+        val intent = Intent(context, AppBlockerService::class.java).apply {
+          action = AppBlockerService.ACTION_RELOAD_CONFIGS
+        }
+        if (parsed.isNotEmpty()) {
+          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            context.startForegroundService(intent)
+          } else {
+            context.startService(intent)
+          }
+        } else {
+          context.stopService(Intent(context, AppBlockerService::class.java))
+        }
+        true
+      } catch (e: Exception) {
+        false
+      }
+    }
+
     // Start the app blocker foreground service
     Function("startAppBlocker") { blockedPackages: List<String>, childName: String, childId: String?, childPin: String? ->
       val context = appContext.reactContext ?: return@Function false
       try {
+        if (childId != null && childPin != null) {
+          BlockerConfigStore.saveConfigs(context, listOf(
+            BlockerChildConfig(childId, childName, childPin, Int.MAX_VALUE / 60, blockedPackages)
+          ))
+        }
         val intent = Intent(context, AppBlockerService::class.java).apply {
-          action = "START"
-          putStringArrayListExtra("blocked_packages", ArrayList(blockedPackages))
-          putExtra("child_name", childName)
-          if (childId != null && childPin != null) {
-            putExtra("child_id", childId)
-            putExtra("child_pin", childPin)
-          }
+          action = AppBlockerService.ACTION_RELOAD_CONFIGS
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
           context.startForegroundService(intent)
@@ -168,6 +237,11 @@ class ScreenTimeModule : Module() {
           putExtra(AppBlockerService.EXTRA_CHILD_PIN, pin)
         }
         context.sendBroadcast(intent)
+        BlockerConfigStore.getConfigs(context).takeIf { it.isNotEmpty() }?.let { configs ->
+          BlockerConfigStore.saveConfigs(context, configs.map {
+            if (it.childId == childId) it.copy(childPin = pin) else it
+          })
+        }
         true
       } catch (e: Exception) {
         false
@@ -248,6 +322,7 @@ class ScreenTimeModule : Module() {
       val context = appContext.reactContext ?: return@Function emptyList<Map<String, Any>>()
       val pm = context.packageManager
       val totalTimes = ChildSessionStore.getUsageForChild(context, childId, startTime.toLong(), endTime.toLong())
+      val launchCounts = ChildSessionStore.getLaunchesForChild(context, childId, startTime.toLong(), endTime.toLong())
       val result = mutableListOf<Map<String, Any>>()
 
       for ((pkg, totalMs) in totalTimes) {
@@ -262,7 +337,7 @@ class ScreenTimeModule : Module() {
           "appName" to appName,
           "totalMinutes" to (totalMs / 60_000).toInt(),
           "lastUsed" to 0L,
-          "launchCount" to 0
+          "launchCount" to (launchCounts[pkg] ?: 0)
         ))
       }
       result.sortByDescending { it["totalMinutes"] as Int }
@@ -388,6 +463,20 @@ class ScreenTimeModule : Module() {
     } catch (e: Exception) {
       return 0
     }
+  }
+
+  private fun isAccessibilityServiceEnabled(context: Context): Boolean {
+    val expected = ComponentName(context, AppBlockerAccessibilityService::class.java).flattenToString()
+    val enabled = Settings.Secure.getString(
+      context.contentResolver,
+      Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+    ) ?: return false
+    val splitter = TextUtils.SimpleStringSplitter(':')
+    splitter.setString(enabled)
+    while (splitter.hasNext()) {
+      if (splitter.next().equals(expected, ignoreCase = true)) return true
+    }
+    return false
   }
 
 }
