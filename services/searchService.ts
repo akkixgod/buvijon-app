@@ -4,7 +4,7 @@
  */
 
 import { supabase } from '@/lib/supabase';
-import { SearchUserResult, SearchFamilyResult } from '@/store/messagesStore';
+import type { SearchUserResult, SearchFamilyResult } from '@/store/messagesStore';
 
 // ============================================================================
 // SEARCH CONFIGURATION
