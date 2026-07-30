@@ -1,14 +1,29 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, TextInput, TouchableOpacity,
-  Modal, KeyboardAvoidingView, Platform, ActivityIndicator,
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Modal,
+  ActivityIndicator,
+  useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
 import { Spacing, Radius, FontSize, FontWeight } from '@/constants/theme';
 import { useTranslation } from '@/i18n';
 import { useParentPinStore } from '@/store/parentPinStore';
+
+const NUMPAD_KEYS = [
+  ['1', '2', '3'],
+  ['4', '5', '6'],
+  ['7', '8', '9'],
+  ['biometric', '0', 'backspace'],
+] as const;
+
+type NumpadKey = (typeof NUMPAD_KEYS)[number][number];
 
 interface ParentPinModalProps {
   visible: boolean;
@@ -18,13 +33,17 @@ interface ParentPinModalProps {
 
 export function ParentPinModal({ visible, onClose, onSuccess }: ParentPinModalProps) {
   const t = useTranslation();
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const keySize = Math.min(76, Math.floor((width - Spacing.lg * 2 - 24) / 3));
+
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
+  const [bioBusy, setBioBusy] = useState(false);
   const [error, setError] = useState('');
   const [showSetup, setShowSetup] = useState(false);
 
   const {
-    isUnlocked,
     isBiometricEnabled,
     unlockWithPin,
     unlockWithBiometric,
@@ -33,231 +52,239 @@ export function ParentPinModal({ visible, onClose, onSuccess }: ParentPinModalPr
     setBiometricEnabled,
   } = useParentPinStore();
 
-  // Check if PIN is already set up
   useEffect(() => {
-    async function check() {
+    if (!visible) return;
+    let cancelled = false;
+    (async () => {
       const hasPin = await hasSetupPin();
-      setShowSetup(!hasPin);
-    }
-    check();
-  }, [visible]);
+      if (!cancelled) setShowSetup(!hasPin);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, hasSetupPin]);
 
-  // Reset on open
   useEffect(() => {
-    if (visible) {
-      setPin('');
-      setError('');
-      setLoading(false);
-    }
-  }, [visible]);
-
-  // Auto-trigger biometric when modal opens (if enabled and not in setup mode)
-  useEffect(() => {
-    if (visible && isBiometricEnabled && !showSetup) {
-      const timer = setTimeout(() => handleBiometric(), 300);
-      return () => clearTimeout(timer);
-    }
-  }, [visible, isBiometricEnabled, showSetup]);
-
-  const handleBiometric = async () => {
+    if (!visible) return;
+    setPin('');
     setError('');
-    setLoading(true);
+    setLoading(false);
+    setBioBusy(false);
+  }, [visible]);
+
+  // Auto-trigger biometric when the lock screen mounts / opens
+  useEffect(() => {
+    if (!visible || showSetup || !isBiometricEnabled) return;
+    const timer = setTimeout(() => {
+      void tryBiometric(true);
+    }, 120);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, showSetup, isBiometricEnabled]);
+
+  const tryBiometric = async (silent = false) => {
+    if (!isBiometricEnabled || showSetup || bioBusy || loading) return;
+    setBioBusy(true);
+    if (!silent) setError('');
     try {
       const success = await unlockWithBiometric();
       if (success) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         onSuccess();
-      } else {
+      } else if (!silent) {
         setError(t.parentPin.wrongPin);
       }
     } catch {
-      setError(t.parentPin.wrongPin);
+      if (!silent) setError(t.parentPin.wrongPin);
     } finally {
-      setLoading(false);
+      setBioBusy(false);
     }
   };
 
-  const handlePinSubmit = async () => {
-    if (pin.length !== 4) {
-      setError(t.parentPin.errPinLength);
-      return;
-    }
-
-    setError('');
+  const submitPin = async (value: string) => {
+    if (value.length !== 4 || loading) return;
     setLoading(true);
-    try {
-      const success = await unlockWithPin(pin);
-      if (success) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        onSuccess();
-      } else {
-        setError(t.parentPin.wrongPin);
-        setPin('');
-      }
-    } catch {
-      setError(t.parentPin.wrongPin);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSetup = async () => {
-    if (pin.length !== 4) {
-      setError(t.parentPin.errPinLength);
-      return;
-    }
-
     setError('');
-    setLoading(true);
     try {
-      const success = await setupPin(pin);
-      if (success) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        onSuccess();
-      } else {
+      if (showSetup) {
+        const ok = await setupPin(value);
+        if (ok) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          onSuccess();
+          return;
+        }
         setError(t.parentPin.errPinLength);
+        setPin('');
+        return;
       }
+
+      const ok = await unlockWithPin(value);
+      if (ok) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        onSuccess();
+        return;
+      }
+      setError(t.parentPin.wrongPin);
+      setPin('');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } catch {
-      setError(t.parentPin.errPinLength);
+      setError(showSetup ? t.parentPin.errPinLength : t.parentPin.wrongPin);
+      setPin('');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleBiometricToggle = async () => {
-    const newState = !isBiometricEnabled;
-    setBiometricEnabled(newState);
+  const appendDigit = (digit: string) => {
+    if (loading || pin.length >= 4) return;
+    Haptics.selectionAsync().catch(() => {});
+    const next = `${pin}${digit}`.slice(0, 4);
+    setPin(next);
+    setError('');
+    if (next.length === 4) void submitPin(next);
+  };
+
+  const backspace = () => {
+    if (loading || !pin.length) return;
+    Haptics.selectionAsync().catch(() => {});
+    setPin(prev => prev.slice(0, -1));
+  };
+
+  const handleBiometricToggle = () => {
+    setBiometricEnabled(!isBiometricEnabled);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
-  const handleBack = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    onClose();
+  const renderKey = (key: NumpadKey) => {
+    if (key === 'biometric') {
+      if (showSetup || !isBiometricEnabled) {
+        return <View key={key} style={[styles.key, { width: keySize, height: keySize }]} />;
+      }
+      return (
+        <TouchableOpacity
+          key={key}
+          style={[styles.key, { width: keySize, height: keySize }]}
+          onPress={() => void tryBiometric(false)}
+          disabled={bioBusy || loading}
+          activeOpacity={0.7}
+          accessibilityLabel={t.parentPin.biometricLabel}
+        >
+          {bioBusy ? (
+            <ActivityIndicator color={Colors.primary} />
+          ) : (
+            <Ionicons name="finger-print" size={28} color={Colors.primary} />
+          )}
+        </TouchableOpacity>
+      );
+    }
+
+    if (key === 'backspace') {
+      return (
+        <TouchableOpacity
+          key={key}
+          style={[styles.key, { width: keySize, height: keySize }]}
+          onPress={backspace}
+          disabled={loading}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="backspace-outline" size={26} color={Colors.textPrimary} />
+        </TouchableOpacity>
+      );
+    }
+
+    return (
+      <TouchableOpacity
+        key={key}
+        style={[styles.key, { width: keySize, height: keySize }]}
+        onPress={() => appendDigit(key)}
+        disabled={loading}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.keyDigit}>{key}</Text>
+      </TouchableOpacity>
+    );
   };
 
   return (
-    <Modal
-      visible={visible}
-      animationType="fade"
-      transparent
-      onRequestClose={handleBack}
-    >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.keyboardView}
+    <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
+      <View
+        style={[
+          styles.screen,
+          {
+            paddingTop: Math.max(insets.top, Spacing.lg),
+            paddingBottom: Math.max(insets.bottom, Spacing.md),
+          },
+        ]}
       >
-        <TouchableOpacity style={styles.overlay} onPress={handleBack}>
-          <View style={styles.container}>
-            <TouchableOpacity
-              style={styles.closeBtn}
-              onPress={handleBack}
-            >
-              <Ionicons name="close" size={24} color={Colors.textMuted} />
-            </TouchableOpacity>
-
-            <Text style={styles.title}>
-              {showSetup ? t.parentPin.setupTitle : t.parentPin.title}
-            </Text>
-            <Text style={styles.subtitle}>
-              {showSetup ? t.parentPin.setupSubtitle : t.parentPin.subtitle}
-            </Text>
-
-            <View style={styles.pinSection}>
-              <View style={styles.inputWrapper}>
-                <Ionicons name="lock-closed" size={24} color={Colors.primary} />
-                <TextInput
-                  style={styles.pinInput}
-                  placeholder={showSetup ? t.parentPin.setupPinPlaceholder : t.parentPin.pinPlaceholder}
-                  placeholderTextColor={Colors.textMuted}
-                  value={pin}
-                  onChangeText={setPin}
-                  keyboardType="number-pad"
-                  maxLength={4}
-                  secureTextEntry
-                  autoFocus
-                  textAlign="center"
-                  selectionColor={Colors.primary}
-                />
-              </View>
-
-              {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-              <View style={styles.buttonsRow}>
-                {showSetup ? (
-                  <TouchableOpacity
-                    style={styles.secondaryBtn}
-                    onPress={handleBack}
-                    disabled={loading}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.secondaryBtnText}>{t.parentPin.cancelBtn}</Text>
-                  </TouchableOpacity>
-                ) : isBiometricEnabled && (
-                  <TouchableOpacity
-                    style={styles.biometricBtn}
-                    onPress={handleBiometric}
-                    disabled={loading}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="finger-print" size={20} color={Colors.primary} />
-                    <Text style={styles.biometricBtnText}>{t.parentPin.biometricLabel}</Text>
-                  </TouchableOpacity>
-                )}
-
-                <TouchableOpacity
-                  style={[styles.primaryBtn, loading && styles.primaryBtnDisabled]}
-                  onPress={showSetup ? handleSetup : handlePinSubmit}
-                  disabled={loading || pin.length !== 4}
-                >
-                  {loading ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Text style={styles.primaryBtnText}>
-                      {showSetup ? t.parentPin.setupBtn : t.parentPin.unlockBtn}
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {!showSetup && (
-              <TouchableOpacity
-                style={styles.biometricToggle}
-                onPress={handleBiometricToggle}
-              >
-                <View style={styles.biometricToggleTrack}>
-                  <View style={[styles.biometricToggleKnob, isBiometricEnabled && styles.biometricToggleKnobOn]} />
-                </View>
-                <Text style={styles.biometricToggleText}>{t.parentPin.biometricToggle}</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+        <TouchableOpacity
+          style={styles.closeBtn}
+          onPress={onClose}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
+          <Ionicons name="close" size={22} color={Colors.textMuted} />
         </TouchableOpacity>
-      </KeyboardAvoidingView>
+
+        <View style={styles.header}>
+          <Text style={styles.brand}>Buvijon</Text>
+          <Text style={styles.title}>
+            {showSetup ? t.parentPin.setupTitle : t.parentPin.lockTitle}
+          </Text>
+          <Text style={styles.subtitle}>
+            {showSetup ? t.parentPin.setupSubtitle : t.parentPin.lockSubtitle}
+          </Text>
+
+          <View style={styles.dotsRow} accessibilityLabel={`PIN ${pin.length} of 4`}>
+            {Array.from({ length: 4 }, (_, i) => {
+              const on = i < pin.length;
+              return <View key={i} style={[styles.dot, on && styles.dotFilled]} />;
+            })}
+          </View>
+
+          <View style={styles.errorSlot}>
+            {error ? <Text style={styles.error}>{error}</Text> : null}
+            {loading ? <ActivityIndicator color={Colors.primary} /> : null}
+          </View>
+        </View>
+
+        <View style={styles.spacer} />
+
+        <View style={styles.numpad} pointerEvents={loading ? 'none' : 'auto'}>
+          {NUMPAD_KEYS.map((row, ri) => (
+            <View key={`r-${ri}`} style={styles.numpadRow}>
+              {row.map(key => renderKey(key))}
+            </View>
+          ))}
+        </View>
+
+        <Text style={styles.hint}>
+          {showSetup ? t.parentPin.setupSubtitle : t.parentPin.lockHint}
+        </Text>
+
+        {!showSetup ? (
+          <TouchableOpacity style={styles.bioToggle} onPress={handleBiometricToggle}>
+            <View style={styles.bioTrack}>
+              <View style={[styles.bioKnob, isBiometricEnabled && styles.bioKnobOn]} />
+            </View>
+            <Text style={styles.bioToggleText}>{t.parentPin.biometricToggle}</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity onPress={onClose} style={styles.cancelBtn}>
+            <Text style={styles.cancelText}>{t.parentPin.cancelBtn}</Text>
+          </TouchableOpacity>
+        )}
+      </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  keyboardView: { flex: 1 },
-  overlay: {
+  screen: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  container: {
-    width: '88%',
-    maxWidth: 380,
-    backgroundColor: Colors.surface,
-    borderRadius: 24,
-    padding: Spacing.xl,
-    alignItems: 'center',
+    backgroundColor: Colors.background,
+    paddingHorizontal: Spacing.lg,
   },
   closeBtn: {
-    position: 'absolute',
-    top: Spacing.sm,
-    right: Spacing.sm,
+    alignSelf: 'flex-end',
     width: 36,
     height: 36,
     borderRadius: 18,
@@ -265,122 +292,131 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  header: {
+    alignItems: 'center',
+    paddingTop: Spacing.sm,
+  },
+  brand: {
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.bold,
+    color: Colors.primary,
+    marginBottom: Spacing.md,
+  },
   title: {
     fontSize: FontSize.xl,
     fontWeight: FontWeight.semibold,
     color: Colors.textPrimary,
-    marginTop: Spacing.sm,
-    marginBottom: Spacing.xs,
+    textAlign: 'center',
   },
   subtitle: {
+    marginTop: Spacing.sm,
+    fontSize: FontSize.md,
+    lineHeight: 22,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    paddingHorizontal: Spacing.md,
+    marginBottom: Spacing.lg,
+    minHeight: 44,
+  },
+  dotsRow: {
+    flexDirection: 'row',
+    gap: 14,
+    height: 18,
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  dot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    backgroundColor: 'transparent',
+  },
+  dotFilled: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  errorSlot: {
+    minHeight: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  error: {
+    color: Colors.wilting,
+    fontSize: FontSize.sm,
+    textAlign: 'center',
+  },
+  spacer: { flex: 1, minHeight: Spacing.md },
+  numpad: {
+    paddingBottom: Spacing.sm,
+  },
+  numpadRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  key: {
+    borderRadius: Radius.full,
+    backgroundColor: Colors.surfaceSecondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  keyDigit: {
+    fontSize: 26,
+    fontWeight: FontWeight.semibold,
+    color: Colors.textPrimary,
+  },
+  hint: {
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.sm,
     fontSize: FontSize.sm,
     color: Colors.textMuted,
     textAlign: 'center',
     lineHeight: 20,
+    paddingHorizontal: Spacing.sm,
+    minHeight: 40,
   },
-  pinSection: {
-    width: '100%',
-    marginTop: Spacing.lg,
-  },
-  inputWrapper: {
+  bioToggle: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.surfaceSecondary,
-    borderRadius: Radius.lg,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-    gap: Spacing.md,
-  },
-  pinInput: {
-    flex: 1,
-    fontSize: 32,
-    fontWeight: FontWeight.semibold,
-    color: Colors.textPrimary,
-    letterSpacing: 12,
-  },
-  errorText: {
-    color: Colors.wilting,
-    fontSize: FontSize.sm,
-    marginTop: Spacing.sm,
-    textAlign: 'center',
-  },
-  buttonsRow: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-    marginTop: Spacing.md,
-    width: '100%',
-  },
-  primaryBtn: {
-    flex: 1,
-    backgroundColor: Colors.primary,
-    borderRadius: Radius.full,
-    paddingVertical: Spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  primaryBtnDisabled: {
-    backgroundColor: Colors.primaryLight,
-  },
-  primaryBtnText: {
-    color: Colors.textOnDark,
-    fontSize: FontSize.md,
-    fontWeight: FontWeight.semibold,
-  },
-  secondaryBtn: {
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  secondaryBtnText: {
-    color: Colors.textPrimary,
-    fontSize: FontSize.md,
-    fontWeight: FontWeight.medium,
-  },
-  biometricBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  biometricBtnText: {
-    color: Colors.textPrimary,
-    fontSize: FontSize.md,
-    fontWeight: FontWeight.medium,
-  },
-  biometricToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: Spacing.sm,
-    marginTop: Spacing.lg,
     paddingVertical: Spacing.sm,
   },
-  biometricToggleTrack: {
+  bioTrack: {
     width: 44,
     height: 24,
     backgroundColor: Colors.borderLight,
     borderRadius: 12,
+    justifyContent: 'center',
+    paddingHorizontal: 2,
   },
-  biometricToggleKnob: {
+  bioKnob: {
     width: 20,
     height: 20,
     borderRadius: 10,
     backgroundColor: Colors.surface,
-    shadowColor: 'rgba(0, 0, 0, 0.1)',
-    shadowOffset: { width: 0, height: 2 },
+    shadowColor: 'rgba(0,0,0,0.12)',
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 1,
-    shadowRadius: 4,
+    shadowRadius: 2,
   },
-  biometricToggleKnobOn: {
+  bioKnobOn: {
     backgroundColor: Colors.primary,
+    marginLeft: 20,
   },
-  biometricToggleText: {
+  bioToggleText: {
     fontSize: FontSize.sm,
     color: Colors.textMuted,
+  },
+  cancelBtn: {
+    alignSelf: 'center',
+    padding: Spacing.sm,
+  },
+  cancelText: {
+    color: Colors.textMuted,
+    fontSize: FontSize.sm,
   },
 });

@@ -55,9 +55,9 @@ export const useParentPinStore = create<ParentPinState>((set) => ({
 
       // Perform biometric authentication
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Подтвердите, что вы родитель',
-        fallbackLabel: 'Использовать PIN',
-        cancelLabel: 'Отмена',
+        promptMessage: "Buvijon: Ota-ona tasdig'i",
+        fallbackLabel: 'PIN-kod kiritish',
+        cancelLabel: 'Bekor qilish',
       });
 
       if (result.success) {

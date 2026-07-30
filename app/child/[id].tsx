@@ -8,6 +8,7 @@ import { AnimatedFlower } from '@/components/flower/AnimatedFlower';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Button } from '@/components/ui/Button';
 import { ParentPinModal } from '@/components/parent-pin/ParentPinModal';
+import { EditChildModal } from '@/components/child/EditChildModal';
 import { useChildrenStore } from '@/store/childrenStore';
 import { useParentPinStore } from '@/store/parentPinStore';
 import { Colors, FlowerColors } from '@/constants/colors';
@@ -64,6 +65,8 @@ export default function ChildDetailScreen() {
   const screenTime = useScreenTime(id);
   const { isUnlocked } = useParentPinStore();
   const [showPinModal, setShowPinModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [pendingAction, setPendingAction] = useState<'edit' | 'limit' | null>(null);
 
   if (!child) {
     return (
@@ -152,8 +155,26 @@ export default function ChildDetailScreen() {
     );
   };
 
+  const requireParentAuth = (action: 'edit' | 'limit', onReady: () => void) => {
+    if (isUnlocked) {
+      onReady();
+      return;
+    }
+    setPendingAction(action);
+    setShowPinModal(true);
+  };
+
   const handleParentPinSuccess = () => {
     setShowPinModal(false);
+    const action = pendingAction;
+    setPendingAction(null);
+    if (action === 'edit') {
+      setShowEditModal(true);
+    }
+    // limit change can reuse edit modal (includes daily limit)
+    if (action === 'limit') {
+      setShowEditModal(true);
+    }
   };
 
   const today = new Date().getDay();
@@ -305,14 +326,13 @@ export default function ChildDetailScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t.childDetail.settingsSection}</Text>
           <View style={styles.actionsCard}>
-            <ActionRow icon="time-outline" label={t.childDetail.changeLimit} onPress={() => {
-              if (!isUnlocked) {
-                setShowPinModal(true);
-              }
-              // TODO: Add limit change modal
-            }} />
             <ActionRow
-              icon="ban-outline"
+              icon="time-outline"
+              label={t.childDetail.changeLimit}
+              onPress={() => requireParentAuth('limit', () => setShowEditModal(true))}
+            />
+            <ActionRow
+              icon="shield-checkmark-outline"
               label={t.childDetail.blockApps}
               badge={child.blockedApps.length > 0 ? `${child.blockedApps.length}` : undefined}
               onPress={() => {
@@ -330,15 +350,30 @@ export default function ChildDetailScreen() {
                 router.push({ pathname: '/child/blocked-apps', params: { childId: child.id } });
               }}
             />
-            <ActionRow icon="location-outline" label={t.childDetail.geolocation} onPress={() => {}} />
+            <ActionRow
+              icon="create-outline"
+              label={t.childDetail.editProfile}
+              onPress={() => requireParentAuth('edit', () => setShowEditModal(true))}
+            />
           </View>
         </View>
 
         <View style={{ height: Spacing.xxl }} />
       </ScrollView>
 
-      {/* Modals */}
-      <ParentPinModal visible={showPinModal} onClose={() => setShowPinModal(false)} onSuccess={handleParentPinSuccess} />
+      <ParentPinModal
+        visible={showPinModal}
+        onClose={() => {
+          setShowPinModal(false);
+          setPendingAction(null);
+        }}
+        onSuccess={handleParentPinSuccess}
+      />
+      <EditChildModal
+        visible={showEditModal}
+        child={child}
+        onClose={() => setShowEditModal(false)}
+      />
     </SafeAreaView>
   );
 }

@@ -5,13 +5,17 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
 import { Spacing, Radius, FontSize, FontWeight } from '@/constants/theme';
 import { useTranslation } from '@/i18n';
 import { useChildrenStore } from '@/store/childrenStore';
 import { AiService, AppClassification, RiskLevel } from '@/services/aiService';
+import {
+  fetchTodayUsageByPackage,
+  sortAppsByDailyUsage,
+} from '@/services/appSortingService';
 
 const RISK_COLOR: Record<RiskLevel, string> = {
   low: Colors.blooming,
@@ -19,21 +23,84 @@ const RISK_COLOR: Record<RiskLevel, string> = {
   high: Colors.wilting,
 };
 
-// Well-known apps shown at top (even if not installed)
-const POPULAR_APPS: { packageName: string; appName: string; icon: string; color: string; bg: string }[] = [
-  { packageName: 'com.google.android.youtube', appName: 'YouTube', icon: 'logo-youtube', color: '#FF0000', bg: '#FEE2E2' },
-  { packageName: 'com.instagram.android', appName: 'Instagram', icon: 'logo-instagram', color: '#E1306C', bg: '#FCE7F3' },
-  { packageName: 'com.zhiliaoapp.musically', appName: 'TikTok', icon: 'musical-notes', color: '#000000', bg: '#F3F4F6' },
-  { packageName: 'org.telegram.messenger', appName: 'Telegram', icon: 'paper-plane', color: '#0088CC', bg: '#DBEAFE' },
-  { packageName: 'com.whatsapp', appName: 'WhatsApp', icon: 'logo-whatsapp', color: '#25D366', bg: '#ECFDF5' },
-  { packageName: 'com.facebook.katana', appName: 'Facebook', icon: 'logo-facebook', color: '#1877F2', bg: '#DBEAFE' },
-  { packageName: 'com.discord', appName: 'Discord', icon: 'chatbubbles', color: '#5865F2', bg: '#EDE9FE' },
-  { packageName: 'com.spotify.music', appName: 'Spotify', icon: 'musical-note', color: '#1DB954', bg: '#ECFDF5' },
-  { packageName: 'com.roblox.client', appName: 'Roblox', icon: 'game-controller', color: '#E2231A', bg: '#FEE2E2' },
-  { packageName: 'com.mojang.minecraftpe', appName: 'Minecraft', icon: 'cube', color: '#62B47A', bg: '#ECFDF5' },
-  { packageName: 'com.android.chrome', appName: 'Chrome', icon: 'logo-chrome', color: '#4285F4', bg: '#DBEAFE' },
-  { packageName: 'com.ss.android.ugc.trill', appName: 'TikTok Lite', icon: 'musical-notes', color: '#000000', bg: '#F3F4F6' },
-];
+/** Icon metadata only — never used as list sort order. */
+const POPULAR_APP_META: Record<
+  string,
+  { appName: string; icon: string; color: string; bg: string }
+> = {
+  'com.google.android.youtube': {
+    appName: 'YouTube',
+    icon: 'logo-youtube',
+    color: '#FF0000',
+    bg: '#FEE2E2',
+  },
+  'com.instagram.android': {
+    appName: 'Instagram',
+    icon: 'logo-instagram',
+    color: '#E1306C',
+    bg: '#FCE7F3',
+  },
+  'com.zhiliaoapp.musically': {
+    appName: 'TikTok',
+    icon: 'musical-notes',
+    color: '#000000',
+    bg: '#F3F4F6',
+  },
+  'org.telegram.messenger': {
+    appName: 'Telegram',
+    icon: 'paper-plane',
+    color: '#0088CC',
+    bg: '#DBEAFE',
+  },
+  'com.whatsapp': {
+    appName: 'WhatsApp',
+    icon: 'logo-whatsapp',
+    color: '#25D366',
+    bg: '#ECFDF5',
+  },
+  'com.facebook.katana': {
+    appName: 'Facebook',
+    icon: 'logo-facebook',
+    color: '#1877F2',
+    bg: '#DBEAFE',
+  },
+  'com.discord': {
+    appName: 'Discord',
+    icon: 'chatbubbles',
+    color: '#5865F2',
+    bg: '#EDE9FE',
+  },
+  'com.spotify.music': {
+    appName: 'Spotify',
+    icon: 'musical-note',
+    color: '#1DB954',
+    bg: '#ECFDF5',
+  },
+  'com.roblox.client': {
+    appName: 'Roblox',
+    icon: 'game-controller',
+    color: '#E2231A',
+    bg: '#FEE2E2',
+  },
+  'com.mojang.minecraftpe': {
+    appName: 'Minecraft',
+    icon: 'cube',
+    color: '#62B47A',
+    bg: '#ECFDF5',
+  },
+  'com.android.chrome': {
+    appName: 'Chrome',
+    icon: 'logo-chrome',
+    color: '#4285F4',
+    bg: '#DBEAFE',
+  },
+  'com.ss.android.ugc.trill': {
+    appName: 'TikTok Lite',
+    icon: 'musical-notes',
+    color: '#000000',
+    bg: '#F3F4F6',
+  },
+};
 
 interface AppItem {
   packageName: string;
@@ -42,6 +109,7 @@ interface AppItem {
   color?: string;
   bg?: string;
   isPopular: boolean;
+  todayMinutes: number;
 }
 
 let ScreenTime: typeof import('screen-time') | null = null;
@@ -66,11 +134,61 @@ export default function BlockedAppsScreen() {
   const [saving, setSaving] = useState(false);
   const [classifications, setClassifications] = useState<Map<string, AppClassification>>(new Map());
 
-  useEffect(() => {
-    loadApps();
+  const loadApps = useCallback(() => {
+    setLoading(true);
+    const installed: Map<string, string> = new Map();
+
+    if (Platform.OS === 'android' && ScreenTime) {
+      try {
+        const apps = ScreenTime.getInstalledApps();
+        for (const app of apps) {
+          installed.set(app.packageName, app.appName);
+        }
+      } catch {}
+    }
+
+    const usage = fetchTodayUsageByPackage();
+    const items: AppItem[] = [];
+    const seen = new Set<string>();
+
+    for (const [pkg, name] of installed) {
+      seen.add(pkg);
+      const meta = POPULAR_APP_META[pkg];
+      items.push({
+        packageName: pkg,
+        appName: meta?.appName ?? name,
+        icon: meta?.icon,
+        color: meta?.color,
+        bg: meta?.bg,
+        isPopular: !!meta,
+        todayMinutes: usage.get(pkg)?.todayMinutes ?? 0,
+      });
+    }
+
+    // Keep well-known apps visible even if launcher query omitted them.
+    for (const [pkg, meta] of Object.entries(POPULAR_APP_META)) {
+      if (seen.has(pkg)) continue;
+      items.push({
+        packageName: pkg,
+        appName: meta.appName,
+        icon: meta.icon,
+        color: meta.color,
+        bg: meta.bg,
+        isPopular: true,
+        todayMinutes: usage.get(pkg)?.todayMinutes ?? 0,
+      });
+    }
+
+    setInstalledApps(sortAppsByDailyUsage(items, usage));
+    setLoading(false);
   }, []);
 
-  // Fetch AI classifications once apps are loaded.
+  useFocusEffect(
+    useCallback(() => {
+      loadApps();
+    }, [loadApps]),
+  );
+
   useEffect(() => {
     if (installedApps.length === 0) return;
     let cancelled = false;
@@ -88,7 +206,9 @@ export default function BlockedAppsScreen() {
         // Silent fail — badges just won't show.
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [installedApps]);
 
   const showReasoning = useCallback((appName: string, reasoning?: string) => {
@@ -96,41 +216,10 @@ export default function BlockedAppsScreen() {
     Alert.alert(appName, reasoning);
   }, []);
 
-  const loadApps = () => {
-    const installed: Map<string, string> = new Map();
-
-    if (Platform.OS === 'android' && ScreenTime) {
-      try {
-        const apps = ScreenTime.getInstalledApps();
-        for (const app of apps) {
-          installed.set(app.packageName, app.appName);
-        }
-      } catch {}
-    }
-
-    const items: AppItem[] = [];
-    const seen = new Set<string>();
-
-    // Add popular apps first
-    for (const app of POPULAR_APPS) {
-      seen.add(app.packageName);
-      items.push({ ...app, isPopular: true });
-    }
-
-    // Add remaining installed apps
-    for (const [pkg, name] of installed) {
-      if (!seen.has(pkg)) {
-        items.push({ packageName: pkg, appName: name, isPopular: false });
-      }
-    }
-
-    setInstalledApps(items);
-    setLoading(false);
-  };
-
   const filtered = useMemo(() => {
     if (!search.trim()) return installedApps;
     const q = search.toLowerCase();
+    // Preserve usage order among matches (no alphabetical re-sort).
     return installedApps.filter(a => a.appName.toLowerCase().includes(q));
   }, [installedApps, search]);
 
@@ -201,7 +290,6 @@ export default function BlockedAppsScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={22} color={Colors.textPrimary} />
@@ -217,13 +305,11 @@ export default function BlockedAppsScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Info */}
       <View style={styles.infoCard}>
         <Ionicons name="shield-checkmark-outline" size={18} color={Colors.primary} />
         <Text style={styles.infoText}>{t.blockedApps.info}</Text>
       </View>
 
-      {/* Search */}
       <View style={styles.searchWrap}>
         <Ionicons name="search" size={18} color={Colors.textMuted} />
         <TextInput
@@ -240,7 +326,6 @@ export default function BlockedAppsScreen() {
         )}
       </View>
 
-      {/* Selected count */}
       {selected.size > 0 && (
         <View style={styles.selectedBar}>
           <Ionicons name="ban" size={16} color={Colors.wilting} />
@@ -250,7 +335,6 @@ export default function BlockedAppsScreen() {
         </View>
       )}
 
-      {/* App list */}
       {loading ? (
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color={Colors.primary} />
@@ -263,6 +347,7 @@ export default function BlockedAppsScreen() {
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
+          extraData={selected}
         />
       )}
     </SafeAreaView>

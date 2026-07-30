@@ -10,14 +10,12 @@ import android.content.IntentFilter
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.os.*
-import android.text.Editable
-import android.text.InputType
-import android.text.TextWatcher
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.View
 import android.view.WindowManager
-import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
@@ -54,7 +52,8 @@ class AppBlockerService : Service() {
   private var windowManager: WindowManager? = null
   private var isOverlayShown = false
   private var isPolling = false
-  private var pinInput: EditText? = null
+  private var pinValue = StringBuilder()
+  private var pinDots: List<TextView> = emptyList()
   private var messageView: TextView? = null
 
   private val pollRunnable = object : Runnable {
@@ -196,108 +195,167 @@ class AppBlockerService : Service() {
     val dp = { value: Int ->
       TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value.toFloat(), resources.displayMetrics).toInt()
     }
+    pinValue.clear()
+
+    val primary = Color.parseColor("#7C3AED")
+    val textPrimary = Color.parseColor("#111111")
+    val textMuted = Color.parseColor("#888888")
+    val keyBg = Color.parseColor("#F8F6FF")
+
+    fun keyBackground(): GradientDrawable = GradientDrawable().apply {
+      shape = GradientDrawable.OVAL
+      setColor(keyBg)
+    }
 
     val layout = LinearLayout(this).apply {
       orientation = LinearLayout.VERTICAL
-      gravity = Gravity.CENTER
-      setBackgroundColor(Color.parseColor("#F9FAFB"))
-      setPadding(dp(32), dp(48), dp(32), dp(48))
+      gravity = Gravity.CENTER_HORIZONTAL
+      setBackgroundColor(Color.WHITE)
+      setPadding(dp(24), dp(48), dp(24), dp(24))
     }
 
-    // Emoji icon
-    val emojiView = TextView(this).apply {
-      text = "\uD83C\uDF3A" // 🌺
-      textSize = 64f
-      gravity = Gravity.CENTER
-    }
-    layout.addView(emojiView)
-
-    // Title
-    val titleView = TextView(this).apply {
-      text = "Введите PIN-код"
-      textSize = 24f
-      setTextColor(Color.parseColor("#111827"))
+    val brandView = TextView(this).apply {
+      text = "Buvijon"
+      textSize = 18f
+      setTextColor(primary)
       typeface = Typeface.DEFAULT_BOLD
       gravity = Gravity.CENTER
-      setPadding(0, dp(16), 0, dp(8))
+      setPadding(0, 0, 0, dp(12))
+    }
+    layout.addView(brandView)
+
+    val titleView = TextView(this).apply {
+      text = "Kirishni tasdiqlang"
+      textSize = 24f
+      setTextColor(textPrimary)
+      typeface = Typeface.DEFAULT_BOLD
+      gravity = Gravity.CENTER
+      setPadding(0, 0, 0, dp(8))
     }
     layout.addView(titleView)
 
-    // Subtitle
     val subtitleView = TextView(this).apply {
-      text = if (childName.isNotEmpty()) {
-        "$childName, введите ваш PIN-код"
-      } else {
-        "Введите ваш PIN-код"
-      }
-      textSize = 16f
-      setTextColor(Color.parseColor("#6B7280"))
+      text = "Ota-ona PIN-kodi yoki biometriya orqali kiring"
+      textSize = 15f
+      setTextColor(Color.parseColor("#333333"))
       gravity = Gravity.CENTER
-      setPadding(0, 0, 0, dp(24))
+      setPadding(dp(8), 0, dp(8), dp(28))
     }
     layout.addView(subtitleView)
 
-    // PIN input
-    pinInput = EditText(this).apply {
-      hint = "****"
-      inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
-      textSize = 32f
-      gravity = Gravity.CENTER
-      setTextColor(Color.parseColor("#111827"))
-      setHintTextColor(Color.parseColor("#9CA3AF"))
-      maxLines = 1
-      // Limit to 4 characters
-      filters = arrayOf(android.text.InputFilter.LengthFilter(4))
-      setPadding(dp(24), dp(16), dp(24), dp(16))
-      // Remove bottom line
-      background = null
-      setOnFocusChangeListener { _, hasFocus ->
-        if (hasFocus) {
-          setBackgroundColor(Color.parseColor("#F3F4F6"))
-        } else {
-          setBackgroundColor(Color.TRANSPARENT)
-        }
-      }
-      // Auto-verify when 4 digits entered
-      addTextChangedListener(object : android.text.TextWatcher {
-        override fun afterTextChanged(s: android.text.Editable?) {
-          val entered = s?.toString() ?: ""
-          if (entered.length == 4) {
-            verifyPin()
-          }
-        }
-        override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-        override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-      })
-    }
-    val pinContainer = LinearLayout(this).apply {
+    val dotsRow = LinearLayout(this).apply {
       orientation = LinearLayout.HORIZONTAL
       gravity = Gravity.CENTER
-      setPadding(dp(16), 0, dp(16), 0)
-      addView(pinInput)
+      setPadding(0, 0, 0, dp(8))
     }
-    layout.addView(pinContainer)
+    val dots = mutableListOf<TextView>()
+    repeat(4) { index ->
+      val dot = TextView(this).apply {
+        text = "○"
+        textSize = 22f
+        setTextColor(Color.parseColor("#CCCCCC"))
+        gravity = Gravity.CENTER
+        setPadding(dp(10), 0, dp(10), 0)
+      }
+      dots.add(dot)
+      dotsRow.addView(dot)
+      if (index < 3) {
+        // spacing via padding already
+      }
+    }
+    pinDots = dots
+    layout.addView(dotsRow)
 
-    // Message view for errors
     messageView = TextView(this).apply {
-      text = ""
+      text = " "
       textSize = 14f
       setTextColor(Color.parseColor("#EF4444"))
       gravity = Gravity.CENTER
-      setPadding(0, dp(12), 0, 0)
+      setPadding(0, dp(8), 0, dp(8))
+      minHeight = dp(28)
     }
     layout.addView(messageView)
 
-    // Info text
-    val infoView = TextView(this).apply {
-      text = "PIN-код был установлен родителем.\nОбратитесь к родителю если забыли код."
-      textSize = 13f
-      setTextColor(Color.parseColor("#9CA3AF"))
-      gravity = Gravity.CENTER
-      setLineSpacing(dp(4).toFloat(), 1f)
-      setPadding(0, dp(16), 0, 0)
+    // Flexible spacer
+    layout.addView(View(this), LinearLayout.LayoutParams(
+      LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f
+    ))
+
+    fun refreshDots() {
+      pinDots.forEachIndexed { i, tv ->
+        if (i < pinValue.length) {
+          tv.text = "●"
+          tv.setTextColor(primary)
+        } else {
+          tv.text = "○"
+          tv.setTextColor(Color.parseColor("#CCCCCC"))
+        }
+      }
     }
-    layout.addView(infoView)
+
+    fun appendDigit(digit: String) {
+      if (pinValue.length >= 4) return
+      pinValue.append(digit)
+      refreshDots()
+      messageView?.text = " "
+      if (pinValue.length == 4) verifyPin()
+    }
+
+    fun backspace() {
+      if (pinValue.isEmpty()) return
+      pinValue.deleteCharAt(pinValue.length - 1)
+      refreshDots()
+    }
+
+    val keySize = dp(72)
+    val keyMargin = dp(6)
+    val rows = listOf(
+      listOf("1", "2", "3"),
+      listOf("4", "5", "6"),
+      listOf("7", "8", "9"),
+      listOf("", "0", "⌫"),
+    )
+    for (row in rows) {
+      val rowLayout = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER
+        setPadding(0, 0, 0, dp(8))
+      }
+      for (label in row) {
+        val key = TextView(this).apply {
+          text = label
+          textSize = if (label == "⌫") 22f else 26f
+          setTextColor(textPrimary)
+          gravity = Gravity.CENTER
+          typeface = Typeface.DEFAULT_BOLD
+          background = if (label.isEmpty()) null else keyBackground()
+          isClickable = label.isNotEmpty()
+          isFocusable = label.isNotEmpty()
+          setOnClickListener {
+            when (label) {
+              "" -> Unit
+              "⌫" -> backspace()
+              else -> appendDigit(label)
+            }
+          }
+        }
+        val lp = LinearLayout.LayoutParams(keySize, keySize).apply {
+          setMargins(keyMargin, 0, keyMargin, 0)
+        }
+        rowLayout.addView(key, lp)
+      }
+      layout.addView(rowLayout)
+    }
+
+    val hintView = TextView(this).apply {
+      text = "Ota-ona PIN-kodi — to'liq kirish | Bola PIN-kodi — cheklangan rejim"
+      textSize = 13f
+      setTextColor(textMuted)
+      gravity = Gravity.CENTER
+      setLineSpacing(dp(2).toFloat(), 1f)
+      setPadding(dp(8), dp(12), dp(8), 0)
+    }
+    layout.addView(hintView)
 
     val params = WindowManager.LayoutParams(
       WindowManager.LayoutParams.MATCH_PARENT,
@@ -311,7 +369,7 @@ class AppBlockerService : Service() {
       windowManager?.addView(layout, params)
       overlayView = layout
       isOverlayShown = true
-      pinInput?.requestFocus()
+      refreshDots()
     } catch (e: Exception) {
       e.printStackTrace()
     }
@@ -326,48 +384,47 @@ class AppBlockerService : Service() {
     }
     overlayView = null
     isOverlayShown = false
-    pinInput = null
+    pinValue.clear()
+    pinDots = emptyList()
     messageView = null
   }
 
   private fun verifyPin() {
-    val enteredPin = pinInput?.text?.toString() ?: ""
-    if (enteredPin.length == 4) {
-      val foundChildId = childPinMap.entries.find { it.value == enteredPin }?.key
-      if (foundChildId != null) {
-        // Correct PIN — open/switch attribution session
-        val previous = ChildSessionStore.getActiveChildId(this)
-        ChildSessionStore.setActiveChildId(this, foundChildId)
-        if (previous != foundChildId) {
-          emitActiveChildChanged(previous, foundChildId)
-        }
+    val enteredPin = pinValue.toString()
+    if (enteredPin.length != 4) return
 
-        // Send broadcast to React Native
-        val pinIntent = Intent(ACTION_PIN_VERIFIED).apply {
-          `package` = packageName
-          putExtra(EXTRA_CHILD_ID, foundChildId)
-          putExtra(EXTRA_CHILD_NAME, childName)
-        }
-        sendBroadcast(pinIntent)
+    val foundChildId = childPinMap.entries.find { it.value == enteredPin }?.key
+    if (foundChildId != null) {
+      val previous = ChildSessionStore.getActiveChildId(this)
+      ChildSessionStore.setActiveChildId(this, foundChildId)
+      if (previous != foundChildId) {
+        emitActiveChildChanged(previous, foundChildId)
+      }
 
-        hideOverlay()
+      val pinIntent = Intent(ACTION_PIN_VERIFIED).apply {
+        `package` = packageName
+        putExtra(EXTRA_CHILD_ID, foundChildId)
+        putExtra(EXTRA_CHILD_NAME, childName)
+      }
+      sendBroadcast(pinIntent)
 
-        // Vibrate feedback
-        val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-        vibrator?.vibrate(100)
+      hideOverlay()
+
+      val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+      vibrator?.vibrate(100)
+    } else {
+      messageView?.text = "Noto'g'ri PIN-kod. Qayta urinib ko'ring."
+      pinValue.clear()
+      pinDots.forEach { tv ->
+        tv.text = "○"
+        tv.setTextColor(Color.parseColor("#CCCCCC"))
+      }
+
+      val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        vibrator?.vibrate(VibrationEffect.createOneShot(200, VibrationEffect.EFFECT_DOUBLE_CLICK))
       } else {
-        // Wrong PIN
-        messageView?.text = "Неверный PIN-код. Попробуйте снова."
-        pinInput?.text?.clear()
-        pinInput?.requestFocus()
-
-        // Vibrate error
-        val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-          vibrator?.vibrate(VibrationEffect.createOneShot(200, VibrationEffect.EFFECT_DOUBLE_CLICK))
-        } else {
-          vibrator?.vibrate(200)
-        }
+        vibrator?.vibrate(200)
       }
     }
   }

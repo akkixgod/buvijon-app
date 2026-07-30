@@ -150,7 +150,12 @@ export interface T {
     settingsSection: string;
     changeLimit: string;
     blockApps: string;
-    geolocation: string;
+    editProfile: string;
+    editTitle: string;
+    editSave: string;
+    editAppsLabel: string;
+    editErrName: string;
+    editErrPin: string;
     appsSection: string;
     launches: string;
     noApps: string;
@@ -401,6 +406,11 @@ export interface T {
     setupBtn: string;
     errPinMismatch: string;
     errPinLength: string;
+    /** Full-screen lock header */
+    lockTitle: string;
+    lockSubtitle: string;
+    /** Hint under numpad */
+    lockHint: string;
   };
 
   messages: {
@@ -592,7 +602,12 @@ const ru: T = {
     settingsSection: 'Настройки',
     changeLimit: 'Изменить лимит',
     blockApps: 'Блокировать приложения',
-    geolocation: 'Геолокация',
+    editProfile: 'Редактировать профиль',
+    editTitle: 'Профиль ребёнка',
+    editSave: 'Сохранить',
+    editAppsLabel: 'Отслеживаемые приложения',
+    editErrName: 'Введите имя',
+    editErrPin: 'Введите 4-значный PIN',
     appsSection: 'Приложения',
     launches: 'запусков',
     noApps: 'Нет данных',
@@ -765,6 +780,9 @@ const ru: T = {
     setupBtn: 'Создать',
     errPinMismatch: 'PIN-коды не совпадают',
     errPinLength: 'Введите 4 цифры',
+    lockTitle: 'Подтвердите вход',
+    lockSubtitle: 'Войдите с родительским PIN или через биометрию',
+    lockHint: 'PIN родителя — полный доступ | PIN ребёнка — ограниченный режим',
   },
   onboarding: {
     skip: 'Пропустить',
@@ -963,7 +981,12 @@ const uzCyrillic: T = {
     settingsSection: 'Созламалар',
     changeLimit: 'Лимитни ўзгартириш',
     blockApps: 'Дастурларни блоклаш',
-    geolocation: 'Геолокация',
+    editProfile: 'Фарзандни таҳрирлаш',
+    editTitle: 'Фарзанд профили',
+    editSave: 'Сақлаш',
+    editAppsLabel: 'Кузатиладиган иловалар',
+    editErrName: 'Исмини киритинг',
+    editErrPin: '4 хонали PIN киритинг',
     appsSection: 'Дастурлар',
     launches: 'марта очилди',
     noApps: "Маълумот йўқ",
@@ -1136,6 +1159,9 @@ const uzCyrillic: T = {
     setupBtn: 'Яратиш',
     errPinMismatch: 'ПИН-кодлар мос келмайди',
     errPinLength: '4 тақам киритинг',
+    lockTitle: 'Киришни тасдиқланг',
+    lockSubtitle: 'Ота-она ПИН-коди ёки биометрия орқали киринг',
+    lockHint: "Ота-она ПИН-коди — тўлиқ кириш | Бола ПИН-коди — чекланган режим",
   },
   onboarding: {
     skip: 'Ўтказиш',
@@ -1332,9 +1358,14 @@ const uzLatin: T = {
     limit: 'Limit',
     week: 'Hafta',
     settingsSection: 'Sozlamalar',
-    changeLimit: 'Limitni o\'zgartirish',
-    blockApps: 'Dasturlarni bloklash',
-    geolocation: 'Geolokatsiya',
+    changeLimit: "Limit qo'yish",
+    blockApps: 'Xavfsizlik',
+    editProfile: 'Farzandni tahrirlash',
+    editTitle: 'Farzand profili',
+    editSave: 'Saqlash',
+    editAppsLabel: 'Kuzatiladigan ilovalar',
+    editErrName: 'Ismni kiriting',
+    editErrPin: '4 xonali PIN kiriting',
     appsSection: 'Ilovalar',
     launches: 'marta ochildi',
     noApps: "Ma'lumot yo'q",
@@ -1507,6 +1538,9 @@ const uzLatin: T = {
     setupBtn: 'Yaratish',
     errPinMismatch: 'PIN-kodlar mos kelmaydi',
     errPinLength: '4 ta raqam kiriting',
+    lockTitle: 'Kirishni tasdiqlang',
+    lockSubtitle: 'Ota-ona PIN-kodi yoki biometriya orqali kiring',
+    lockHint: "Ota-ona PIN-kodi — to'liq kirish | Bola PIN-kodi — cheklangan rejim",
   },
   onboarding: {
     skip: "O'tkazish",
